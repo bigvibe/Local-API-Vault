@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0c111d" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <title>Local API Vault</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">◈</div>
+          <div>
+            <div class="brand-name">Local API Vault</div>
+            <div class="brand-caption">local · encrypted · developer-first</div>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <span id="vault-status" class="status-pill locked">未解锁</span>
+          <button id="lock-button" class="button button-quiet" type="button" hidden>锁定 Vault</button>
+        </div>
+      </header>
+
+      <main>
+        <section id="onboarding" class="onboarding panel">
+          <div class="hero-copy">
+            <p class="eyebrow">YOUR LOCAL SECRET VAULT</p>
+            <h1>把密钥留在<br /><span>你的电脑上。</span></h1>
+            <p class="hero-description">
+              一个简单、离线、面向开发者的 API 密钥保险箱。默认不上传、不注册、不追踪。
+            </p>
+          </div>
+          <div class="onboarding-card">
+            <div class="card-heading">
+              <div>
+                <h2>选择你的 Vault 操作</h2>
+                <p>创建、打开、恢复或重建你的本地 Vault。</p>
+              </div>
+              <span class="lock-icon" aria-hidden="true">⌁</span>
+            </div>
+            <div class="field">
+              <span>Vault 文件路径</span>
+              <div class="path-input-row">
+                <input id="vault-path" type="text" spellcheck="false" autocomplete="off" />
+                <button id="choose-vault" class="input-action" type="button">选择文件</button>
+              </div>
+            </div>
+            <label class="field">
+              <span>主密码</span>
+              <input id="passphrase" type="password" autocomplete="current-password" />
+            </label>
+            <div class="button-row">
+              <button id="create-vault" class="button button-primary" type="button">创建 Vault</button>
+              <button id="open-vault" class="button button-secondary" type="button">打开 Vault</button>
+              <button id="rebuild-vault" class="button button-quiet" type="button">重建 Vault</button>
+              <button id="recover-vault" class="button button-quiet" type="button">恢复 Vault</button>
+            </div>
+            <p class="rebuild-note">重建会保留原 Vault 文件，并创建一个空的新 Vault。</p>
+            <p class="privacy-note"><span aria-hidden="true">●</span> 所有解密操作都在本机完成；解锁后可持续使用，点击锁定即可清理。</p>
+          </div>
+        </section>
+
+        <section id="workspace" class="workspace" hidden>
+          <aside class="sidebar panel">
+            <div class="sidebar-top">
+              <div>
+                <p class="eyebrow">VAULT CONTENTS</p>
+                <h2>我的密钥</h2>
+              </div>
+              <button id="add-entry" class="icon-button" type="button" title="添加密钥" aria-label="添加密钥">＋</button>
+            </div>
+            <p id="vault-location" class="sidebar-location" title=""></p>
+            <label class="search-field">
+              <span aria-hidden="true">⌕</span>
+              <input id="search-input" type="search" placeholder="搜索名称、项目或标签" autocomplete="off" />
+            </label>
+            <div class="filter-row">
+              <button class="filter-button active" data-filter="all" type="button">全部</button>
+              <button class="filter-button" data-filter="environment" type="button">环境变量</button>
+              <button class="filter-button" data-filter="token" type="button">Token</button>
+              <button class="filter-button" data-filter="disabled" type="button">已停用</button>
+            </div>
+            <div id="entry-list" class="entry-list"></div>
+            <div class="sidebar-footer">
+              <div class="sidebar-actions">
+                <button id="import-env" class="text-button" type="button">导入 .env</button>
+                <button id="export-backup" class="text-button" type="button">导出加密备份</button>
+                <button id="change-password" class="text-button" type="button">修改主密码</button>
+                <button id="run-profiles" class="text-button" type="button">运行配置</button>
+                <button id="toggle-autostart" class="text-button" type="button">开机自启动：关</button>
+                <button id="enable-recovery" class="text-button" type="button" hidden>设置恢复密钥</button>
+              </div>
+              <span id="entry-count" class="muted-text">0 个条目</span>
+            </div>
+          </aside>
+
+          <section class="editor panel">
+            <div id="empty-editor" class="empty-editor">
+              <div class="empty-icon" aria-hidden="true">✦</div>
+              <h2>选择一个密钥</h2>
+              <p>从左侧选择条目，或点击“＋”添加新的 API 凭据。</p>
+            </div>
+
+            <form id="entry-form" class="entry-form" hidden>
+              <div class="editor-heading">
+                <div>
+                  <p class="eyebrow">SECRET DETAILS</p>
+                  <h2 id="editor-title">添加密钥</h2>
+                </div>
+                <div class="editor-actions">
+                  <button id="copy-reference" class="button button-quiet" type="button" hidden>复制参考资料</button>
+                  <button id="toggle-entry-status" class="button button-quiet" type="button">停用</button>
+                  <button id="delete-entry" class="button button-danger-quiet" type="button" hidden>删除</button>
+                  <button id="save-entry" class="button button-primary" type="submit">保存</button>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <label class="field field-wide">
+                  <span>名称 <b>*</b></span>
+                  <input id="entry-name" type="text" required placeholder="例如：OpenAI API" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>类型</span>
+                  <select id="entry-kind">
+                    <option value="api-key">API Key</option>
+                    <option value="token">Token</option>
+                    <option value="environment">环境变量</option>
+                    <option value="private-key">私钥</option>
+                    <option value="other">其他</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>项目</span>
+                  <input id="entry-project" type="text" placeholder="例如：web-app" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>环境</span>
+                  <select id="entry-environment">
+                    <option value="development">development</option>
+                    <option value="staging">staging</option>
+                    <option value="production">production</option>
+                    <option value="shared">shared</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>用户名 / 标识</span>
+                  <input id="entry-username" type="text" autocomplete="off" />
+                </label>
+                <label class="field field-wide">
+                  <span>密钥 <b>*</b></span>
+                  <div class="secret-input-wrap">
+                    <input id="entry-secret" type="password" required autocomplete="off" spellcheck="false" />
+                    <button id="toggle-secret" class="input-action" type="button">显示</button>
+                    <button id="copy-secret" class="input-action" type="button">复制</button>
+                  </div>
+                </label>
+                <label class="field field-wide">
+                  <span>服务地址</span>
+                  <input id="entry-url" type="url" placeholder="https://api.example.com" autocomplete="off" />
+                </label>
+                <label class="field field-wide">
+                  <span>标签</span>
+                  <input id="entry-tags" type="text" placeholder="用逗号分隔，例如：生产, 支付" autocomplete="off" />
+                </label>
+                <label class="field field-wide">
+                  <span>备注</span>
+                  <textarea id="entry-notes" rows="4" placeholder="记录用途、轮换日期等非敏感信息"></textarea>
+                </label>
+              </div>
+              <p id="form-message" class="form-message" role="status"></p>
+            </form>
+          </section>
+        </section>
+      </main>
+
+      <div id="profile-modal" class="modal-backdrop" hidden>
+        <section class="modal-card modal-card-wide" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+          <div class="modal-heading">
+            <div>
+              <p class="eyebrow">RUN PROFILES</p>
+              <h2 id="profile-modal-title">运行配置</h2>
+            </div>
+            <button id="close-profile-modal" class="icon-button" type="button" aria-label="关闭">×</button>
+          </div>
+          <p class="modal-description">保存常用启动方式。配置只保存目录、命令和密钥名称，不保存密钥值。</p>
+          <div id="profile-list" class="profile-list"></div>
+          <form id="profile-form" class="profile-form">
+            <input id="profile-id" type="hidden" />
+            <div class="form-grid profile-form-grid">
+              <label class="field">
+                <span>配置名称 <b>*</b></span>
+                <input id="profile-name" type="text" required placeholder="例如：web-dev" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>项目目录 <b>*</b></span>
+                <div class="path-input-row">
+                  <input id="profile-directory" type="text" required placeholder="D:\\projects\\web" autocomplete="off" />
+                  <button id="choose-profile-directory" class="input-action" type="button">选择</button>
+                </div>
+              </label>
+              <label class="field field-wide">
+                <span>启动命令 <b>*</b></span>
+                <input id="profile-command" type="text" required placeholder="npm run dev" autocomplete="off" />
+              </label>
+              <label class="field field-wide">
+                <span>注入的密钥名称 <b>*</b></span>
+                <select id="profile-secrets" multiple size="5" required></select>
+                <small class="field-help">按住 Ctrl 可选择多个启用的密钥；只保存名称。</small>
+              </label>
+              <label class="field">
+                <span>项目筛选</span>
+                <input id="profile-project" type="text" placeholder="可选" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>环境筛选</span>
+                <input id="profile-environment" type="text" placeholder="可选" autocomplete="off" />
+              </label>
+            </div>
+            <p id="profile-message" class="form-message" role="status"></p>
+            <div class="button-row modal-actions">
+              <button id="clear-profile-form" class="button button-quiet" type="button">清空</button>
+              <button id="save-profile" class="button button-primary" type="submit">保存配置</button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <div id="recovery-setup-modal" class="modal-backdrop" hidden>
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="recovery-setup-title">
+          <div class="modal-heading">
+            <div>
+              <p class="eyebrow">RECOVERY SETUP</p>
+              <h2 id="recovery-setup-title">保存恢复密钥</h2>
+            </div>
+            <button id="close-recovery-setup" class="icon-button" type="button" aria-label="关闭">×</button>
+          </div>
+          <p class="modal-description">这是一把独立的恢复密钥。请保存到 Vault 之外的安全位置；丢失它就无法恢复原数据。</p>
+          <label class="field">
+            <span>恢复身份密钥</span>
+            <textarea id="recovery-key" rows="4" readonly spellcheck="false"></textarea>
+          </label>
+          <p class="recovery-warning">应用同时生成了 <code>Vault.identity.age</code> 恢复身份副本，请和恢复身份文件一起妥善备份。</p>
+          <p id="recovery-setup-message" class="form-message" role="status"></p>
+          <div class="button-row modal-actions">
+            <button id="copy-recovery-key" class="button button-secondary" type="button">复制密钥</button>
+            <button id="save-recovery-key" class="button button-primary" type="button">保存身份文件</button>
+            <button id="finish-recovery-setup" class="button button-quiet" type="button">稍后设置</button>
+          </div>
+        </section>
+      </div>
+
+      <div id="recovery-access-modal" class="modal-backdrop" hidden>
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="recovery-access-title">
+          <div class="modal-heading">
+            <div>
+              <p class="eyebrow">RECOVERY ACCESS</p>
+              <h2 id="recovery-access-title">使用恢复密钥</h2>
+            </div>
+            <button id="close-recovery-access" class="icon-button" type="button" aria-label="关闭">×</button>
+          </div>
+          <p class="modal-description">恢复流程需要原 Vault 和恢复身份文件；<code>Vault.identity.age</code> 只需在以后使用主密码解锁时保留。</p>
+          <form id="recovery-form">
+            <label class="field">
+              <span>原 Vault 路径</span>
+              <input id="recovery-vault-path" type="text" spellcheck="false" required />
+            </label>
+            <label class="field">
+              <span>恢复身份文件</span>
+              <div class="path-input-row">
+                <input id="recovery-identity-path" type="text" spellcheck="false" required />
+                <button id="choose-recovery-identity" class="input-action" type="button">选择文件</button>
+              </div>
+            </label>
+            <label class="field">
+              <span>新的主密码</span>
+              <input id="recovery-new-password" type="password" minlength="12" autocomplete="new-password" required />
+            </label>
+            <label class="field">
+              <span>确认新的主密码</span>
+              <input id="recovery-confirm-password" type="password" minlength="12" autocomplete="new-password" required />
+            </label>
+            <p id="recovery-access-message" class="form-message" role="status"></p>
+            <div class="button-row modal-actions">
+              <button id="cancel-recovery" class="button button-secondary" type="button">取消</button>
+              <button id="confirm-recovery" class="button button-primary" type="submit">恢复并设置新密码</button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <div id="password-modal" class="modal-backdrop" hidden>
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="password-modal-title">
+          <div class="modal-heading">
+            <div>
+              <p class="eyebrow">SECURITY SETTINGS</p>
+              <h2 id="password-modal-title">修改主密码</h2>
+            </div>
+            <button id="close-password-modal" class="icon-button" type="button" aria-label="关闭">×</button>
+          </div>
+          <p class="modal-description">修改前会先验证当前主密码。Vault 会用新密码重新加密保存。</p>
+          <form id="password-form">
+            <label class="field">
+              <span>当前主密码</span>
+              <input id="current-password" type="password" autocomplete="current-password" required />
+            </label>
+            <label class="field">
+              <span>新主密码</span>
+              <input id="new-password" type="password" autocomplete="new-password" minlength="12" required />
+            </label>
+            <label class="field">
+              <span>确认新主密码</span>
+              <input id="confirm-password" type="password" autocomplete="new-password" minlength="12" required />
+            </label>
+            <p id="password-modal-message" class="form-message" role="status"></p>
+            <div class="button-row modal-actions">
+              <button id="cancel-password" class="button button-secondary" type="button">取消</button>
+              <button id="confirm-password-change" class="button button-primary" type="submit">更新主密码</button>
+            </div>
+          </form>
+        </section>
+      </div>
+      <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

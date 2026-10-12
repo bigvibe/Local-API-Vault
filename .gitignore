@@ -1,0 +1,17 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+.vscode/
+.DS_Store
+*.log
+*.age
+*.age.recovery
+*.identity.age
+*.recovery
+*.recovery-key
+*.recovery.key
+*.key
+*.vault
+.env
+.env.*

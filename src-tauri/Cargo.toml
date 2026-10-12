@@ -1,0 +1,31 @@
+[package]
+name = "local-api-vault"
+version = "0.1.0"
+description = "A local-first, offline developer API key vault"
+edition = "2021"
+rust-version = "1.85"
+default-run = "local-api-vault"
+
+[lib]
+name = "local_api_vault_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+age = "=0.11.5"
+interprocess = "2.4"
+widestring = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+thiserror = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+rpassword = "7"
+zeroize = "1"
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"

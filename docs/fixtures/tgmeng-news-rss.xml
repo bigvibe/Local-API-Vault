@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Sanitized sample of https://tgmeng.com/news/rss.xml (news hot list), captured 2026-10-13.
+  Titles and URLs are public news headlines; none of them are credentials.
+  Kept verbatim on purpose: the point of a fixture is the exact item shape.
+
+  Contrast with the finance feeds, whose descriptions carry NO heat value:
+    https://tgmeng.com/finance/rss.xml  -> [财联社] 点击标题查看详细内容
+    https://tgmeng.com/stock/rss.xml    -> [财联社 电报] 点击标题查看详细内容
+    https://tgmeng.com/futures/rss.xml  -> [SMM 快讯] 点击标题查看详细内容
+-->
+<rss version="2.0">
+  <channel>
+    <title>新闻热榜 - 糖果梦热榜</title>
+    <link>https://tgmeng.com/news</link>
+    <description>糖果梦新闻热榜聚合百度热榜、今日头条、腾讯新闻、网易新闻、澎湃新闻、央视新闻等今日新闻热点和新闻热搜榜，实时追踪全网新闻趋势，并提供新闻RSS订阅入口。</description>
+    <language>zh-CN</language>
+    <lastBuildDate>Tue, 13 Oct 2026 04:12:41 GMT</lastBuildDate>
+    <item>
+      <title>示例新闻标题一</title>
+      <link>https://example-news-site.com/a/123456</link>
+      <description>[腾讯] 热度：14824</description>
+      <guid>https://example-news-site.com/a/123456#示例新闻标题一</guid>
+    </item>
+    <item>
+      <title>示例新闻标题二</title>
+      <link>https://example-news-site.com/a/123457</link>
+      <description>[头条] 热度：45703328</description>
+      <guid>https://example-news-site.com/a/123457#示例新闻标题二</guid>
+    </item>
+    <!--
+      头条条目有时不带热度值，解析器必须容忍这种情况。
+      财经/股讯/期货榜则**全部**是这种无热度格式。
+    -->
+    <item>
+      <title>示例新闻标题三（无热度值）</title>
+      <link>https://example-news-site.com/a/123458</link>
+      <description>[头条] 点击标题查看详细内容</description>
+      <guid>https://example-news-site.com/a/123458#示例新闻标题三（无热度值）</guid>
+    </item>
+    <!-- 财经类 feed 的真实形态：来源标签后无任何热度数字。 -->
+    <item>
+      <title>示例财经快讯</title>
+      <link>https://example-finance-site.com/telegraph/999</link>
+      <description>[财联社 电报] 点击标题查看详细内容</description>
+      <guid>https://example-finance-site.com/telegraph/999#示例财经快讯</guid>
+    </item>
+    <item>
+      <title>示例新闻标题四</title>
+      <link>https://example-news-site.com/a/123459</link>
+      <description>[网易] 热度：1497598</description>
+      <guid>https://example-news-site.com/a/123459#示例新闻标题四</guid>
+    </item>
+  </channel>
+</rss>
