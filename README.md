@@ -14,7 +14,10 @@
 ## 下载安装
 
 到 [Releases 页面](https://github.com/bigvibe/Local-API-Vault/releases) 下载
-`Local API Vault_<版本>_x64-setup.exe`，双击安装即可。
+`Local_API_Vault_<版本>_x64-setup.exe`，双击安装即可。
+
+（GitHub 会把资产名里的空格替换成下划线，所以是 `Local_API_Vault` 而不是
+`Local API Vault`。）
 
 - 安装到当前用户目录（`%LOCALAPPDATA%`），**不需要管理员权限**
 - 卸载走「设置 → 应用」，会一并清理开机自启动项

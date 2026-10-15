@@ -36,9 +36,28 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: Local API Vault ${{ github.ref_name }}
           releaseBody: |
-            Local API Vault release.
+            Local API Vault ${{ github.ref_name }}
 
-            This build is currently unsigned. Verify the checksum and do not store your only copy of production credentials in an unaudited build.
+            一个完全离线的本地 API 密钥保险箱：不上云、不注册、不联网。
+
+            ### 安装
+            1. 下载下方的 `_x64-setup.exe` 并双击安装（当前用户目录，无需管理员权限）
+            2. 打开应用，创建 Vault 并设置主密码
+            3. 主密码无法找回，界面给出的恢复身份文件请离线保存
+
+            装完后可用 `lvault get <条目名>`。该命令已加入 PATH，但只对新开的终端生效。
+
+            ### Windows 会提示「未知发布者」
+            本项目尚未购买代码签名证书，SmartScreen 会拦截，这是预期行为而非感染。
+            可点「更多信息 → 仍要运行」跳过。GitHub 在资产下方提供 SHA-256，可自行比对。
+
+            ### 已知限制
+            - 尚未完成独立安全审计，加密文件格式在 0.1.x 内可能继续演进
+            - 目前仅支持 Windows
+
+            请不要在审计完成前，把唯一的高价值生产凭据交给它。
+
+            许可证：Apache-2.0
           releaseDraft: true
           prerelease: false
           # `-- --locked` (note the separator) forwards --locked to cargo.
