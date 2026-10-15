@@ -1,0 +1,50 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    # Weekly, Monday 03:17 UTC. GitHub disables scheduled workflows on
+    # repositories with no activity for 60 days, so commit to the repo or this
+    # will silently stop running.
+    - cron: '17 3 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: windows-latest
+
+    permissions:
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Rust is the security-critical part of this project (vault format,
+        # crypto wrappers, the Named Pipe bridge). JavaScript is the Tauri
+        # frontend, which only renders and calls local commands.
+        language: [rust, javascript-typescript]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          language: ${{ matrix.language }}
+          # Rust has no build-mode tracing, and the frontend is plain
+          # unbundled JavaScript, so `none` is correct and avoids the
+          # autobuild step failing on a Tauri project.
+          build-mode: none
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'

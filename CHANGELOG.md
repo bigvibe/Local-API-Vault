@@ -33,3 +33,7 @@
 - 新增 `docs/fixtures/` 约定：第三方接口的脱敏响应样例放仓库，契约写 `docs/`
 - `lvault` / CLI 错误提示改为中文并给出下一步操作（锁定→点托盘解锁、停用→去应用启用等）
 - 名称不匹配时返回相近条目名建议（仅名称，仅解锁时），无需给 pipe 增加列目录能力
+- 新增 `security.yml`：gitleaks 全历史密钥扫描、`cargo audit`、`npm audit`
+- 新增 `codeql.yml`：Rust 与前端每周静态分析
+- 新增 `dependabot.yml`：依赖与 GitHub Actions 自动更新
+- 修复 `source-map-js` 高危公告（GHSA-68fv-2mgg-jv7q），1.2.1 → 1.2.2

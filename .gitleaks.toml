@@ -1,0 +1,25 @@
+# gitleaks configuration
+#
+# Default rules are used as-is; this file only carves out exceptions, so the
+# scan stays as strict as possible everywhere else.
+
+title = "Local API Vault — gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+Deliberate false positives in the redaction test suite.
+
+`src-tauri/src/redact.rs` contains a fake bearer token used to prove that the
+"复制参考资料" feature masks credentials in an entry's notes. The test asserts
+that this value is ABSENT from the rendered output, so its presence in the
+source is the whole point — it is a detection decoy, not a leaked credential.
+
+Scoped to the exact literal rather than the whole file, so any *other* secret
+introduced into redact.rs is still caught.
+"""
+regexes = [
+  '''sk-live-abcdef0123456789''',
+]
