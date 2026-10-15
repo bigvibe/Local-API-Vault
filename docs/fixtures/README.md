@@ -1,7 +1,7 @@
 # Sanitized fixtures
 
-This directory holds **sanitized** example responses for third-party APIs that
-the project integrates with (for example `tgmeng`).
+This directory holds **sanitized** example responses for third-party APIs you
+integrate with a vault entry.
 
 Rules for anything placed here:
 
@@ -12,8 +12,11 @@ Rules for anything placed here:
 - Keep the **shape** (field names, nesting, types) intact, because the point of
   a fixture is to let a developer or an AI agent code against the real
   structure without touching the vault.
+- Do not paste in content that is private to your own account — real account
+  ids, expiry timestamps, machine bindings, or anything identifying. Shape is
+  what matters here, not values.
 - Format follows the source: JSON endpoints use `<api>.json`, RSS and other XML
-  endpoints use `<api>-<feed>.xml` (for example `tgmeng-news-rss.xml`).
+  endpoints use `<api>-<feed>.xml`.
 
 The API contract itself lives in `docs/<api>.md`. See `AGENTS.md` for why these
 belong in the repository rather than in the encrypted vault.

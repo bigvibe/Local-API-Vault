@@ -134,12 +134,10 @@ lvault run web-dev
 - 手动锁定和剪贴板清理的边界测试
 - 崩溃日志脱敏
 - 备份损坏和密码错误恢复测试
-- 负责任的漏洞披露流程
 
 请查看 [`docs/security-model.md`](docs/security-model.md)、[`docs/mvp.md`](docs/mvp.md) 和 [`docs/client-contract.md`](docs/client-contract.md)。
 
-第三方服务接入示例见 [`docs/tgmeng.md`](docs/tgmeng.md)：它演示了「契约进仓库、凭据进
-Vault」的分工方式。
+报告漏洞请使用仓库的 **Security → Report a vulnerability**，详见 [`SECURITY.md`](SECURITY.md)。
 
 ## 许可证
 

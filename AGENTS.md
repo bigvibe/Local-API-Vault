@@ -30,14 +30,14 @@ See **API contracts are not secrets** below.
 The desktop app must be running and unlocked. Then:
 
 ```powershell
-lvault get TGMENG_API_KEY
+lvault get EXAMPLE_API_KEY
 ```
 
 - `lvault get <NAME>` writes exactly one secret value to stdout.
 - Prefer assigning it rather than letting it scroll:
 
   ```powershell
-  $env:TGMENG_API_KEY = (lvault get TGMENG_API_KEY)
+  $env:EXAMPLE_API_KEY = (lvault get EXAMPLE_API_KEY)
   ```
 
 - Or let the CLI launch the process for you — it injects the variables and
