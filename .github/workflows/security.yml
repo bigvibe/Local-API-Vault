@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
 
       - name: Scan tracked files and history for credentials
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           # Scans the full history too, so a secret committed and removed in a
           # later commit is still caught. `--config` honours .gitleaks.toml,
