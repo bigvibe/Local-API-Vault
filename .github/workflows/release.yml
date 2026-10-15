@@ -25,7 +25,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
       - name: Build and publish draft release
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Local API Vault ${{ github.ref_name }}
