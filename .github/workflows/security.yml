@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (full history)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -37,34 +37,40 @@ jobs:
     name: Rust dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
-      # Installs a prebuilt cargo-audit rather than compiling it, which would
-      # add several minutes to every run. Reports findings as PR annotations.
+      # cargo-audit is not in the action's built-in tool list, so it falls back to
+      # cargo-binstall, which fetches a prebuilt binary. Compiling it from
+      # source via `cargo install` adds ~7 minutes to every run.
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      # Deliberately plain `cargo audit` rather than rustsec/audit-check.
+      # audit-check sets its failure flag for warnings as well as
+      # vulnerabilities, so the six `unmaintained` warnings from Tauri's
+      # i18n dependency chain turn the whole job red — and a permanently red
+      # Security badge is worse than no badge, because people learn to ignore it.
       #
-      # Baseline as of 2026-10-15: 0 vulnerabilities. The job still prints 8
-      # "unmaintained" warnings (proc-macro-error2, the unic-* crates —
-      # Tauri's i18n chain). These are informational, not exploitable, and
-      # cargo-audit does not fail on them. Do NOT add an ignore list to silence
-      # them: if RustSec later reclassifies one as unsound, CI turning red is
-      # the behaviour we want. The one `unsound` advisory in the tree (glib,
-      # RUSTSEC-2024-0429) is Linux-only and is not compiled for this
-      # Windows target.
+      # Plain cargo audit exits 0 on warnings and non-zero on real
+      # vulnerabilities, which is the signal we actually want. It also means we
+      # do not have to enumerate RUSTSEC ids in an `ignore` list, which would
+      # go stale and would also mask a crate that RustSec later reclassifies
+      # from unmaintained to unsound.
+      #
+      # Baseline 2026-10-15: 0 vulnerabilities. See the audit note above.
       - name: Audit dependencies against the RustSec advisory database
-        uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: src-tauri
+        run: cargo audit
+        working-directory: src-tauri
 
   npm-audit:
     name: Frontend dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
