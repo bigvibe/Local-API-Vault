@@ -145,7 +145,7 @@ JSON 响应后关闭。请求中的 `operation` 可省略，缺省为 `get`。
   "ok": false,
   "code": "not_found",
   "message": "secret not found",
-  "suggestions": ["TGMENG_API_KEY"]
+  "suggestions": ["EXAMPLE_API_KEY"]
 }
 ```
 

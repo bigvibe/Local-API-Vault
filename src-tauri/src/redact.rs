@@ -312,7 +312,7 @@ mod tests {
     fn entry() -> SecretEntry {
         SecretEntry {
             id: "id".into(),
-            name: "TGMENG_API_KEY".into(),
+            name: "NEWSFEED_API_KEY".into(),
             kind: "api-key".into(),
             project: "market".into(),
             environment: "production".into(),
@@ -333,7 +333,7 @@ mod tests {
         assert!(!rendered.contains("super-secret-value"));
         assert!(!rendered.contains("ops@example.com"));
         assert!(rendered.contains(REDACTED));
-        assert!(rendered.contains("TGMENG_API_KEY"));
+        assert!(rendered.contains("NEWSFEED_API_KEY"));
         assert!(rendered.contains("market"));
         assert!(rendered.contains("production"));
     }
@@ -341,7 +341,7 @@ mod tests {
     #[test]
     fn keeps_contract_but_masks_credentials_in_notes() {
         let mut item = entry();
-        item.notes = "新闻聚合 API\nBase URL: https://tgmeng.com\n\
+        item.notes = "新闻聚合 API\nBase URL: https://newsfeed.example.com\n\
                       认证方式: Authorization: Bearer sk-live-abcdef0123456789\n\
                       端点: /api/v1/hot/search\n\
                       返回: { code, data: { list: [] } }"
@@ -349,7 +349,7 @@ mod tests {
         let rendered = entry_reference(&item);
 
         assert!(!rendered.contains("sk-live-abcdef0123456789"));
-        assert!(rendered.contains("https://tgmeng.com"));
+        assert!(rendered.contains("https://newsfeed.example.com"));
         assert!(rendered.contains("/api/v1/hot/search"));
         assert!(rendered.contains("data"));
     }
@@ -383,8 +383,8 @@ mod tests {
     fn leaves_short_identifiers_and_urls_intact() {
         assert_eq!(mask_blobs("OPENAI_API_KEY"), "OPENAI_API_KEY");
         assert_eq!(
-            mask_blobs("https://tgmeng.com/api/v1/hot/search"),
-            "https://tgmeng.com/api/v1/hot/search"
+            mask_blobs("https://newsfeed.example.com/api/v1/hot/search"),
+            "https://newsfeed.example.com/api/v1/hot/search"
         );
         assert_eq!(mask_blobs("production"), "production");
     }

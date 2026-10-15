@@ -241,9 +241,9 @@ fn name_contains(haystack: &str, needle: &str) -> bool {
 /// Rank candidate entry names by how plausibly they were meant to be `wanted`.
 ///
 /// The user-facing problem this solves: someone remembers "I saved something
-/// for tgmeng" but not under what exact name. Returning a few nearby NAMES turns
-/// a dead-end error into a usable correction. Only names are ever compared here;
-/// no value is involved, and this only runs on the unlocked path.
+/// for that one service" but not under what exact name. Returning a few nearby
+/// NAMES turns a dead-end error into a usable correction. Only names are ever
+/// compared here; no value is involved, and this only runs on the unlocked path.
 fn suggest_names(candidates: &[String], wanted: &str, limit: usize) -> Vec<String> {
     let mut scored: Vec<(u32, &String)> = Vec::new();
     for candidate in candidates {
@@ -587,14 +587,17 @@ mod tests {
     fn suggests_nearby_names_on_a_miss() {
         // The realistic beginner case: the name is remembered approximately.
         let suggestions = suggest_names_for(
-            &["TGMENG_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"],
-            "TGMENG",
+            &["NEWSFEED_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"],
+            "NEWSFEED",
         );
-        assert_eq!(suggestions, vec!["TGMENG_API_KEY".to_owned()]);
+        assert_eq!(suggestions, vec!["NEWSFEED_API_KEY".to_owned()]);
 
         // Case-insensitive exact match ranks first.
-        let suggestions = suggest_names_for(&["tgmeng.com", "TGMENG_API_KEY"], "tgmeng.com");
-        assert_eq!(suggestions[0], "tgmeng.com");
+        let suggestions = suggest_names_for(
+            &["newsfeed.example.com", "NEWSFEED_API_KEY"],
+            "newsfeed.example.com",
+        );
+        assert_eq!(suggestions[0], "newsfeed.example.com");
 
         // Candidate contained in what was typed, when the query is long enough.
         let suggestions = suggest_names_for(&["api_key", "SOMETHING_ELSE"], "my_api_key");
@@ -614,7 +617,7 @@ mod tests {
         let mut document = VaultFile::load(&path, passphrase).unwrap();
         document.entries.push(SecretEntry {
             id: "id".to_owned(),
-            name: "TGMENG_API_KEY".to_owned(),
+            name: "NEWSFEED_API_KEY".to_owned(),
             kind: "api-key".to_owned(),
             project: "demo".to_owned(),
             environment: "development".to_owned(),
@@ -632,7 +635,7 @@ mod tests {
 
         // Locked: vault_locked, and NO name suggestions — a locked vault reveals
         // nothing, not even which entries exist.
-        let locked = handle_request(&state, request("TGMENG"));
+        let locked = handle_request(&state, request("NEWSFEED"));
         assert_eq!(locked.code, "vault_locked");
         assert!(locked.suggestions.is_empty());
 
@@ -645,9 +648,11 @@ mod tests {
             .unwrap();
 
         // Unlocked miss: suggestions present, names only — never a value.
-        let response = handle_request(&state, request("TGMENG"));
+        let response = handle_request(&state, request("NEWSFEED"));
         assert_eq!(response.code, "not_found");
-        assert!(response.suggestions.contains(&"TGMENG_API_KEY".to_owned()));
+        assert!(response
+            .suggestions
+            .contains(&"NEWSFEED_API_KEY".to_owned()));
         assert!(!response.message.contains("value"));
         // The stable machine-readable message is unchanged (contract).
         assert_eq!(response.message, "secret not found");
