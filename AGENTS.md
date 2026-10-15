@@ -93,10 +93,11 @@ cargo test  --manifest-path src-tauri/Cargo.toml --all-targets
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
-Rust builds on the reference machine require the MSVC environment first:
+On Windows, `cargo` needs the MSVC environment. Run the build from a
+"Developer PowerShell for VS", or initialise it in place:
 
 ```powershell
-cmd /c '"C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Auxiliary\Build\vcvars64.bat" && set "PATH=C:\Users\Admin\RC\tools\node;C:\Users\Admin\.cargo\bin;%PATH%" && npm run tauri -- build'
+cmd /c '"<path-to-vs>\VC\Auxiliary\Build\vcvars64.bat" && npm run tauri -- build'
 ```
 
 The test `autostart::tests::toggles_run_key_and_restores` briefly writes and then

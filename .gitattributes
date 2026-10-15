@@ -1,0 +1,36 @@
+# Normalise line endings in the repository, then restore native endings on
+# checkout. Without this, Windows contributors commit CRLF and Linux/macOS
+# commit LF, and every cross-platform diff becomes noise.
+
+* text=auto
+
+# Source and docs: LF in the repo. This is what rustfmt, prettier and most
+# tooling assume, so keeping it stable avoids spurious reformat commits.
+*.rs      text eol=lf
+*.toml    text eol=lf
+*.js      text eol=lf
+*.css     text eol=lf
+*.html    text eol=lf
+*.json    text eol=lf
+*.xml     text eol=lf
+*.yml     text eol=lf
+*.md      text eol=lf
+.gitignore      text eol=lf
+.gitattributes  text eol=lf
+
+# Windows scripts. cmd.exe batch parsing is genuinely line-ending sensitive:
+# `goto` and labels need CRLF to match reliably, so *.cmd is not optional.
+*.cmd    text eol=crlf
+*.bat    text eol=crlf
+
+# NSIS installer hook (Tauri reads this at install time). NSIS tolerates LF,
+# so this is for consistency with the other Windows scripts rather than a
+# hard requirement.
+*.nsh    text eol=crlf
+
+# Binary — never diffed, never line-ending translated.
+*.ico    binary
+*.png    binary
+*.jpg    binary
+*.exe    binary
+*.dll    binary
