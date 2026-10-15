@@ -43,6 +43,15 @@ jobs:
 
       # Installs a prebuilt cargo-audit rather than compiling it, which would
       # add several minutes to every run. Reports findings as PR annotations.
+      #
+      # Baseline as of 2026-10-15: 0 vulnerabilities. The job still prints 8
+      # "unmaintained" warnings (proc-macro-error2, the unic-* crates —
+      # Tauri's i18n chain). These are informational, not exploitable, and
+      # cargo-audit does not fail on them. Do NOT add an ignore list to silence
+      # them: if RustSec later reclassifies one as unsound, CI turning red is
+      # the behaviour we want. The one `unsound` advisory in the tree (glib,
+      # RUSTSEC-2024-0429) is Linux-only and is not compiled for this
+      # Windows target.
       - name: Audit dependencies against the RustSec advisory database
         uses: rustsec/audit-check@v2
         with:

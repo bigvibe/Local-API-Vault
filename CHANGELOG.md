@@ -37,3 +37,6 @@
 - 新增 `codeql.yml`：Rust 与前端每周静态分析
 - 新增 `dependabot.yml`：依赖与 GitHub Actions 自动更新
 - 修复 `source-map-js` 高危公告（GHSA-68fv-2mgg-jv7q），1.2.1 → 1.2.2
+- 修复 `yoke-derive` 锁定在被撤回（yanked）的版本，0.8.3 → 0.8.4
+- 审计基线：`cargo audit` 0 漏洞；剩余 8 条为 unmaintained 提示（Tauri i18n 依赖链），
+  唯一一条 unsound（glib）为 Linux 专属，不参与 Windows 构建
