@@ -15,7 +15,7 @@
 提交前请先删除报告中的真实 API Key、主密码、Vault 文件内容与个人信息。
 
 若你不愿使用 GitHub 的报告入口（例如不希望留下 GitHub 记录），
-可以发邮件至 `tyhjrxy@gmail.com`，主题请写 `[security]`。
+可以发邮件至 `ayswzhw@outlook.com`，主题请写 `[security]`。
 
 请**不要**在公开 Issue 中提交包含真实凭据的报告。
 
