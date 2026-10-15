@@ -31,4 +31,4 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-dialog = "2"
 
 [target.'cfg(windows)'.dependencies]
-winreg = "0.55"
+winreg = "0.56"
