@@ -13,17 +13,26 @@
 
 ## 下载安装
 
-到 [Releases 页面](https://github.com/bigvibe/Local-API-Vault/releases) 下载
-`Local_API_Vault_<版本>_x64-setup.exe`，双击安装即可。
+到 [Releases 页面](https://github.com/bigvibe/Local-API-Vault/releases) 下载最新版本，
+双击 `_x64-setup.exe` 即可。
 
-（GitHub 会把资产名里的空格替换成下划线，所以是 `Local_API_Vault` 而不是
-`Local API Vault`。）
+文件名形如 `Local.API.Vault_0.1.0_x64-setup.exe`。注意 GitHub 会把产品名里的**空格
+替换成点号**，所以是 `Local.API.Vault` 而不是 `Local API Vault` —— 在下载列表里按
+`_x64-setup.exe` 找最不容易认错。
 
 - 安装到当前用户目录（`%LOCALAPPDATA%`），**不需要管理员权限**
 - 卸载走「设置 → 应用」，会一并清理开机自启动项
 
 首次启动会让你创建 Vault 并设置主密码。**主密码无法找回**，界面会同时给出一份恢复身份
 文件，请离线保存好。
+
+### 校验下载的文件
+
+GitHub 在资产列表下方会显示该文件的 SHA-256，可与本地文件比对：
+
+```powershell
+Get-FileHash .\Local.API.Vault_0.1.0_x64-setup.exe -Algorithm SHA256
+```
 
 ### 安装后
 
@@ -37,7 +46,7 @@ PowerShell 窗口。如果提示找不到命令，看[CLI 一节](#cli)。
 > **Windows 会提示「未知发布者」**
 >
 > 本项目的构建产物没有代码签名，所以 SmartScreen 会拦一下。这是预期行为，不是感染。
-> 原因与应对见[安全边界](#安全边界)。
+> 点「更多信息」→「仍要运行」可跳过。原因与应对见[安全边界](#安全边界)。
 
 ## 目标
 
