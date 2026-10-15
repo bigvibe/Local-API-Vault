@@ -26,6 +26,12 @@ jobs:
         run: npm ci
       - name: Build and publish draft release
         uses: tauri-apps/tauri-action@v1
+        env:
+          # Required as of tauri-action v1. v0 picked the token up implicitly;
+          # v1 fails with "GITHUB_TOKEN is required" if this is missing.
+          # The workflow-level `permissions: contents: write` above is what
+          # gives this token its write scope.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Local API Vault ${{ github.ref_name }}
