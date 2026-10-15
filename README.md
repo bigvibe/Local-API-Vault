@@ -1,5 +1,10 @@
 # Local API Vault
 
+[![CI](https://github.com/bigvibe/Local-API-Vault/actions/workflows/ci.yml/badge.svg)](https://github.com/bigvibe/Local-API-Vault/actions/workflows/ci.yml)
+[![Release](https://github.com/bigvibe/Local-API-Vault/actions/workflows/release.yml/badge.svg)](https://github.com/bigvibe/Local-API-Vault/releases)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows)](https://learn.microsoft.com/windows/)
+
 一个默认离线、面向开发者的本地 API 密钥保险箱。
 
 > 当前状态：MVP 开发中。请不要在审计完成前存放唯一的高价值凭据。

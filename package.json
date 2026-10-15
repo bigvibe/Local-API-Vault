@@ -5,6 +5,14 @@
   "type": "module",
   "description": "A local-first, offline developer API key vault",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bigvibe/Local-API-Vault.git"
+  },
+  "homepage": "https://github.com/bigvibe/Local-API-Vault",
+  "bugs": {
+    "url": "https://github.com/bigvibe/Local-API-Vault/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
