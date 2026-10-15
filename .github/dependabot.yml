@@ -1,0 +1,37 @@
+version: 2
+
+updates:
+  # Rust dependencies. The vault format and crypto wrappers sit on `age` and
+  # Tauri, so a RustSec advisory here is the one most likely to matter.
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: 'chore(deps):'
+    groups:
+      cargo-minor:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: 'chore(deps):'
+    groups:
+      npm-minor:
+        update-types:
+          - minor
+          - patch
+
+  # Keeps the Actions themselves current — pinned, stale workflow actions are
+  # a supply-chain risk in their own right.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: 'chore(ci):'

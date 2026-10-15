@@ -1,6 +1,8 @@
 # Local API Vault
 
 [![CI](https://github.com/bigvibe/Local-API-Vault/actions/workflows/ci.yml/badge.svg)](https://github.com/bigvibe/Local-API-Vault/actions/workflows/ci.yml)
+[![Security](https://github.com/bigvibe/Local-API-Vault/actions/workflows/security.yml/badge.svg)](https://github.com/bigvibe/Local-API-Vault/actions/workflows/security.yml)
+[![CodeQL](https://github.com/bigvibe/Local-API-Vault/actions/workflows/codeql.yml/badge.svg)](https://github.com/bigvibe/Local-API-Vault/actions/workflows/codeql.yml)
 [![Release](https://github.com/bigvibe/Local-API-Vault/actions/workflows/release.yml/badge.svg)](https://github.com/bigvibe/Local-API-Vault/releases)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows)](https://learn.microsoft.com/windows/)
@@ -132,10 +134,26 @@ lvault run web-dev
 
 ## 安全边界
 
-本项目目前是早期原型，尚未完成独立安全审计。加密库和数据格式可能发生变化。当前构建默认不包含代码签名，正式发布前必须补充：
+本项目目前是早期原型，**尚未完成独立安全审计**。加密库和数据格式仍可能发生变化。
 
-- 威胁模型和安全审计
-- 签名安装包与依赖锁定
+当前构建不包含代码签名，因此 Windows SmartScreen 可能提示「未知发布者」。请注意：
+即便购买 EV 证书，自 2024 年起也不再绕过 SmartScreen，信誉需要靠下载量积累，
+签名本身不能消除首次安装的警告。
+
+已经做到的自动化检查（每次提交与每周定时运行）：
+
+| 检查 | 覆盖范围 |
+| --- | --- |
+| [CodeQL](https://github.com/bigvibe/Local-API-Vault/actions/workflows/codeql.yml) | Rust 与前端静态分析 |
+| 密钥扫描 | 全量 git 历史中的凭据泄漏 |
+| `cargo audit` | Rust 依赖的 RustSec 公告 |
+| `npm audit` | 前端依赖的已知漏洞 |
+| Dependabot | 依赖与 GitHub Actions 自动更新 |
+
+自动化检查能发现已知缺陷，**不等于经过审计**。尚未完成的项：
+
+- 第三方独立安全审计
+- Windows 代码签名
 - 手动锁定和剪贴板清理的边界测试
 - 崩溃日志脱敏
 - 备份损坏和密码错误恢复测试

@@ -1,0 +1,66 @@
+name: Security
+
+# Kept separate from CI on purpose. CI answers "does it still build and pass
+# tests"; this answers "does it still look safe". A new CVE turning this red
+# should not make it ambiguous whether the code itself is broken.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan tracked files and history for credentials
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          # Scans the full history too, so a secret committed and removed in a
+          # later commit is still caught. `--config` honours .gitleaks.toml,
+          # which exempts exactly one decoy token in the redaction test suite.
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: '--config .gitleaks.toml --redact --verbose'
+
+  rust-audit:
+    name: Rust dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Installs a prebuilt cargo-audit rather than compiling it, which would
+      # add several minutes to every run. Reports findings as PR annotations.
+      - name: Audit dependencies against the RustSec advisory database
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: src-tauri
+
+  npm-audit:
+    name: Frontend dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=high
