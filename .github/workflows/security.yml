@@ -5,9 +5,9 @@ name: Security
 # should not make it ambiguous whether the code itself is broken.
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
 permissions:
   contents: read

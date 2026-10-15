@@ -2,9 +2,9 @@ name: CodeQL
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
   schedule:
     # Weekly, Monday 03:17 UTC. GitHub disables scheduled workflows on
     # repositories with no activity for 60 days, so commit to the repo or this
