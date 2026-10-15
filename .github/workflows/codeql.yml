@@ -38,7 +38,12 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          language: ${{ matrix.language }}
+          # NOTE: the input is `languages` (plural) as of codeql-action v3.
+          # v2 had a singular `language`; using that name here silently fails
+          # the step. The action's own docs recommend passing
+          # `${{ matrix.language }}` as the value of `languages`, which is
+          # exactly what this does.
+          languages: ${{ matrix.language }}
           # Rust has no build-mode tracing, and the frontend is plain
           # unbundled JavaScript, so `none` is correct and avoids the
           # autobuild step failing on a Tauri project.
