@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## [0.1.0] - 2026-10-16
+
+首次公开发布。加密文件格式与 Pipe 协议在 0.1.x 内可能继续演进。
 
 - 初始 Tauri + Rust 桌面 MVP
 - 使用 age 兼容的加密 Vault 文件
