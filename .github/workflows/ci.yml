@@ -26,9 +26,16 @@ jobs:
         run: npm ci
       - name: Build frontend
         run: npm run build
+      # --locked makes Cargo fail rather than silently re-resolve. Without it,
+      # a dependency with a newer semver-compatible release makes CI build and
+      # test versions that are NOT the ones committed in Cargo.lock — so a green
+      # badge would not mean "the committed lockfile is sound".
+      #
+      # Note the `-- --locked` on the tauri build: `tauri build` has no
+      # --locked flag, and forwards everything after a bare `--` to cargo.
       - name: Test Rust targets
-        run: cargo test --manifest-path src-tauri/Cargo.toml --all-targets
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked --all-targets
       - name: Lint Rust
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
       - name: Build desktop binary without bundle
-        run: npm run tauri -- build --no-bundle
+        run: npm run tauri -- build --no-bundle -- --locked

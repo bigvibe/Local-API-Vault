@@ -35,4 +35,7 @@ jobs:
             This build is currently unsigned. Verify the checksum and do not store your only copy of production credentials in an unaudited build.
           releaseDraft: true
           prerelease: false
-          args: --bundles nsis
+          # `-- --locked` (note the separator) forwards --locked to cargo.
+          # `tauri build` has no --locked flag of its own; everything after a
+          # bare `--` is passed through to the runner.
+          args: --bundles nsis -- --locked
