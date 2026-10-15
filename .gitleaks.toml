@@ -12,14 +12,17 @@ useDefault = true
 description = """
 Deliberate false positives in the redaction test suite.
 
-`src-tauri/src/redact.rs` contains a fake bearer token used to prove that the
-"复制参考资料" feature masks credentials in an entry's notes. The test asserts
-that this value is ABSENT from the rendered output, so its presence in the
-source is the whole point — it is a detection decoy, not a leaked credential.
+`src-tauri/src/redact.rs` contains fake credentials used to prove that the
+"复制参考资料" feature masks credentials appearing in an entry's notes. The
+tests assert these values are ABSENT from the rendered output, so their presence
+in the source is the point — they are detection decoys, not leaked credentials.
 
-Scoped to the exact literal rather than the whole file, so any *other* secret
+Scanned against gitleaks 8.30.1; these are exactly the two values it flags.
+
+Scoped to the exact literals rather than the whole file, so any *other* secret
 introduced into redact.rs is still caught.
 """
 regexes = [
-  '''sk-live-abcdef0123456789''',
+  # `masks_assigned_secrets_in_notes` — notes containing `token=...`
+  '''abc123secret456''',
 ]
