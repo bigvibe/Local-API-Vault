@@ -54,12 +54,16 @@ jobs:
       # Security badge is worse than no badge, because people learn to ignore it.
       #
       # Plain cargo audit exits 0 on warnings and non-zero on real
-      # vulnerabilities, which is the signal we actually want. It also means we
-      # do not have to enumerate RUSTSEC ids in an `ignore` list, which would
-      # go stale and would also mask a crate that RustSec later reclassifies
-      # from unmaintained to unsound.
+      # vulnerabilities, which is the signal we actually want.
       #
-      # Baseline 2026-10-15: 0 vulnerabilities. See the audit note above.
+      # Exactly one advisory is currently exempted, and it lives in this
+      # package's .cargo/audit.toml: RUSTSEC-2026-0387 (crypto-bigint
+      # timing side-channel). It is exempted because **no fix exists in the
+      # release chain we require** (age has not shipped elliptic-curve 0.14
+      # support). See that file for the dependency path, the rationale and
+      # the removal condition. This is the only ignore in this repository.
+      #
+      # Baseline 2026-11-05: 0 vulnerabilities, 1 documented excuse.
       - name: Audit dependencies against the RustSec advisory database
         run: cargo audit
         working-directory: src-tauri

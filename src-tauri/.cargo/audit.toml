@@ -1,0 +1,28 @@
+# Audit configuration for this crate only. Narrow and time-boxed.
+#
+# RUSTSEC-2026-0387 (crypto-bigint 0.5.5 — timing variability in constant-time
+# operations) is exempted because **no fixed release chain exists**:
+#
+#   age 0.12.1 (latest stable)
+#     -> age-core 0.12.0
+#       -> hpke 0.12.0            (whose default features include "p256")
+#         -> p256 0.13.2
+#           -> elliptic-curve 0.13.8
+#             -> crypto-bigint 0.5.5
+#
+# The advisory requires crypto-bigint >= 0.7.6, which requires p256 /
+# elliptic-curve 0.14. age has not released the corresponding update yet, so
+# the normal `cargo update` path is unavailable.
+#
+# The vulnerable path is P-256 HPKE. The vault's own decryption is password-
+# based; exploitation would also need an attacker capable of high-resolution
+# timing measurement on the same machine. Documented in SECURITY.md, to be
+# removed the moment age ships the corresponding upgrade.
+#
+# This exemption is deliberately minimal: it masks exactly one ID. Everything
+# else still fails the job. If this entry is stale, raising it will surface
+# again as a failure and should be investigated.
+#
+# Revisit on every dependency bump / before next release.
+[advisories]
+ignore = ["RUSTSEC-2026-0387"]
