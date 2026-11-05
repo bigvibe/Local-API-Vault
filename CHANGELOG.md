@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+- README 新增「适合谁 / 不适合谁」章节；新增 `docs/recipes.md`（真实项目接入指南）
+- 文档说明 `.env` 导入不过滤是刻意设计（宁可多存勿漏存）
+- CI：`codeql-action` 升级 3→4（PR #14，已合并）
+- 安全基线：对 `RUSTSEC-2026-0387`（crypto-bigint，上游无修复）做一次性、
+  仅此一条、附条件的豁免，详见 `SECURITY.md` 与 `src-tauri/.cargo/audit.toml`
+- 发布：README 新增下载安装章节，Release 说明改为面向初学者的中文版本
+
 ## [0.1.0] - 2026-10-16
 
 首次公开发布。加密文件格式与 Pipe 协议在 0.1.x 内可能继续演进。

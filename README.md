@@ -55,6 +55,22 @@ PowerShell 窗口。如果提示找不到命令，看[CLI 一节](#cli)。
 - 支持项目、环境、掩码显示、复制和手动锁定
 - 通过 Windows Named Pipe + `lvault` CLI 把密钥注入本地命令，不生成 `.env` 文件
 
+## 适合谁 / 不适合谁
+
+**适合：** 单用户、本机、项目能读环境变量（env / `os.environ` / `process.env`）。密钥值只用于
+本地开发工具或脚本，不需要多人共享、不需要云端。
+
+**不适合：**
+
+- 多台机器同步 / 团队共享密钥 —— 没有账号系统和共享 Vault，这是明确的边界
+- CI/CD 注入密钥 —— 没有非交互解锁 API（刻意为之，避免主密码出现在脚本里），用 CI 平台的 secret store
+- 密钥自动轮换 / 续期 —— 不做，轮换是手动流程
+- 需要「明文配置文件」的项目 —— 本工具不会写出含密钥的文件；改用环境变量插值，否则换方案
+- 跨操作系统 —— 目前仅支持 Windows
+
+完整的接入方法（Python / Node / 配置文件插值 / 换机器 / 轮换 / CI 为什么不行…）见
+[Recipes：如何在真实项目里用起来](docs/recipes.md)。
+
 ## MVP 范围
 
 - 创建、打开、重建和锁定 Vault
@@ -197,7 +213,7 @@ lvault run web-dev
 - 崩溃日志脱敏
 - 备份损坏和密码错误恢复测试
 
-请查看 [`docs/security-model.md`](docs/security-model.md)、[`docs/mvp.md`](docs/mvp.md) 和 [`docs/client-contract.md`](docs/client-contract.md)。
+请查看 [`docs/security-model.md`](docs/security-model.md)、[`docs/mvp.md`](docs/mvp.md)、[`docs/client-contract.md`](docs/client-contract.md) 和 [`docs/recipes.md`](docs/recipes.md)（接入指南）。
 
 报告漏洞请使用仓库的 **Security → Report a vulnerability**，详见 [`SECURITY.md`](SECURITY.md)。
 
