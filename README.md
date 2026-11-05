@@ -16,7 +16,7 @@
 到 [Releases 页面](https://github.com/bigvibe/Local-API-Vault/releases) 下载最新版本，
 双击 `_x64-setup.exe` 即可。
 
-文件名形如 `Local.API.Vault_0.1.0_x64-setup.exe`。注意 GitHub 会把产品名里的**空格
+文件名形如 `Local.API.Vault_<版本>_x64-setup.exe`。注意 GitHub 会把产品名里的**空格
 替换成点号**，所以是 `Local.API.Vault` 而不是 `Local API Vault` —— 在下载列表里按
 `_x64-setup.exe` 找最不容易认错。
 
@@ -31,7 +31,7 @@
 GitHub 在资产列表下方会显示该文件的 SHA-256，可与本地文件比对：
 
 ```powershell
-Get-FileHash .\Local.API.Vault_0.1.0_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Local.API.Vault_<版本>_x64-setup.exe -Algorithm SHA256
 ```
 
 ### 安装后
