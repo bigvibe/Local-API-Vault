@@ -387,6 +387,39 @@ main {
   font-size: 10px;
 }
 
+.onboard-brief {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+}
+
+.onboard-brief-title {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.onboard-brief ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted-strong);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.onboard-brief li + li {
+  margin-top: 4px;
+}
+
+.onboard-brief strong {
+  color: var(--text);
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(265px, 0.72fr) minmax(0, 1.8fr);

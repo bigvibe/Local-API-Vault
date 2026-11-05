@@ -213,7 +213,7 @@ lvault run web-dev
 - 崩溃日志脱敏
 - 备份损坏和密码错误恢复测试
 
-请查看 [`docs/security-model.md`](docs/security-model.md)、[`docs/mvp.md`](docs/mvp.md)、[`docs/client-contract.md`](docs/client-contract.md) 和 [`docs/recipes.md`](docs/recipes.md)（接入指南）。
+请查看 [`docs/security-model.md`](docs/security-model.md)、[`docs/mvp.md`](docs/mvp.md)、[`docs/client-contract.md`](docs/client-contract.md) 和 [`docs/recipes.md`](docs/recipes.md)（接入指南）和 [`docs/roadmap.md`](docs/roadmap.md)（近期计划）。
 
 报告漏洞请使用仓库的 **Security → Report a vulnerability**，详见 [`SECURITY.md`](SECURITY.md)。
 
