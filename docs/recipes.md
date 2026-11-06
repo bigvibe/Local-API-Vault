@@ -36,6 +36,27 @@ lvault run -- python manage.py scrape
 lvault run -- cmd /c "some-tool --check"
 ```
 
+## 每个项目只配置一次：`.lvault.toml`
+
+如果每次都列 `--secret` 很烦，在项目根目录放一个 `.lvault.toml`：
+
+```toml
+vars = ["NEWSFEED_API_KEY", "OAK_PRIVATE_JWT"]
+```
+
+- 里面**只有名字，没有值**，可以放心提交进仓库，和代码一起走
+- 在这个目录下直接运行即可，不必再写 `--secret`：
+
+  ```powershell
+  lvault run -- python bot.py
+  ```
+
+- 只认**当前目录**的 `.lvault.toml`，不会往父目录找
+- 同时写了 `--secret` 时，以命令行为准
+
+这和 Run Profile 的区别：`.lvault.toml` 跟着仓库走（适合多人/多机克隆同一项目），
+Run Profile 存在本机应用里（适合完全不进仓库的临时命令）。两者都只存名字，不存值。
+
 ## 项目读「配置文件」怎么办
 
 这个工具**不会**生成 `.env` 文件，也**不会**让别的工具去接收一整份密钥。

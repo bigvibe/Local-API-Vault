@@ -164,6 +164,25 @@ local-api-vault-cli run --cwd D:\projects\web --secret OPENAI_API_KEY -- npm run
 
 `run` 会先通过 Pipe 检查 Vault 是否解锁、条目是否启用，再把密钥作为子进程环境变量传入。
 
+### 项目级自动发现：`.lvault.toml`
+
+在项目根目录放一个 `.lvault.toml`，只写要注入的**条目名**（也就是环境变量名），没有值，可以安全提交进仓库：
+
+```toml
+vars = ["OPENAI_API_KEY", "NEWSFEED_API_KEY"]
+```
+
+之后在该目录运行，就不必再逐个列 `--secret`：
+
+```powershell
+lvault run -- npm run dev
+```
+
+- 文件里只有名字，**绝不会出现密钥值**；格式写错会直接报错，而不是半懂不懂地接受
+- 只在**当前目录**查找，不会向父目录递归，避免把父项目的条目带进别的 shell
+- 同时给了 `--secret` 时以命令行为准，`.lvault.toml` 不参与
+- 上限：16 KB、最多 64 个名字、只允许顶层 `vars`
+
 `lvault` 是安装目录下的安全包装命令，只暴露两个动词：
 
 ```powershell

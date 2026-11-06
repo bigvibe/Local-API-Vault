@@ -1,10 +1,11 @@
 use local_api_vault_lib::{
     bridge::{self, ClientError},
+    project_config,
     vault::{default_vault_path, VaultFile},
 };
 use std::env;
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use zeroize::Zeroize;
 
@@ -40,7 +41,17 @@ fn explain(error: &ClientError) -> String {
 }
 
 fn usage() -> &'static str {
-    "用法:\n  local-api-vault-cli get <name> --vault <path>\n  local-api-vault-cli list --vault <path>\n  local-api-vault-cli pipe-get <name> [--project <name>] [--environment <name>]\n  local-api-vault-cli run <profile>\n  local-api-vault-cli run [--cwd <path>] --secret <NAME> [--project <name>] [--environment <name>] -- <command>\n\n主密码只通过安全提示读取，不会作为命令行参数传入。\n停用条目不会出现在 list 中，也不能通过 get 或 pipe-get 读取。\nrun 通过已解锁的 Windows Named Pipe 注入环境变量，不生成 .env。"
+    r#"用法:
+  local-api-vault-cli get <name> --vault <path>
+  local-api-vault-cli list --vault <path>
+  local-api-vault-cli pipe-get <name> [--project <name>] [--environment <name>]
+  local-api-vault-cli run <profile>
+  local-api-vault-cli run [--cwd <path>] --secret <NAME> [--project <name>] [--environment <name>] -- <command>
+  local-api-vault-cli run [--cwd <path>] -- <command>   （自动读取当前目录的 .lvault.toml）
+
+主密码只通过已解锁的 Windows Named Pipe 注入，不会落成 .env 文件。
+在项目根目录放一个 .lvault.toml（vars = ["KEY_NAME"]，只有名字、没有值）后，可省去 --secret；
+lvault run -- <command> 会注入该文件列出的全部条目。"#
 }
 
 fn main() {
@@ -184,9 +195,6 @@ where
     if !after_separator || command_parts.is_empty() {
         return Err("run 需要 -- <command>，例如 -- npm run dev".to_owned());
     }
-    if secret_names.is_empty() {
-        return Err("run 至少需要一个 --secret <NAME>。".to_owned());
-    }
 
     let working_directory = match working_directory {
         Some(path) => path,
@@ -194,6 +202,24 @@ where
             .map(|path| path.to_string_lossy().into_owned())
             .map_err(|error| error.to_string())?,
     };
+
+    if secret_names.is_empty() {
+        match project_config::load_project_config(Path::new(&working_directory)) {
+            Ok(cfg) => {
+                secret_names = cfg.vars;
+            }
+            Err(project_config::ProjectConfigError::NotFound(_)) => {
+                return Err(concat!(
+                    "run 没有 --secret，当前目录也没找到 .lvault.toml。\n",
+                    "项目根目录放一个 .lvault.toml（vars = [\"KEY_NAME\"]），\n",
+                    "或明确写出：lvault run --secret KEY_NAME -- <command>"
+                )
+                .to_owned());
+            }
+            Err(error) => return Err(format!("读取 .lvault.toml 失败：{error}")),
+        }
+    }
+
     let command_line = command_parts.join(" ");
     execute_run(
         &working_directory,

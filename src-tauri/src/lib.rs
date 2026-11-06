@@ -3,6 +3,7 @@ pub mod bridge;
 mod commands;
 mod crypto;
 pub mod model;
+pub mod project_config;
 mod redact;
 mod state;
 pub mod vault;

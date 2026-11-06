@@ -2362,7 +2362,7 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 
 [[package]]
 name = "local-api-vault"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "age",
  "interprocess",
@@ -2374,6 +2374,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tempfile",
  "thiserror 2.0.21",
+ "toml 1.1.6+spec-1.1.0",
  "uuid",
  "widestring",
  "winreg 0.56.0",
