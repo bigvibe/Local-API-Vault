@@ -83,7 +83,13 @@ pub fn entry_reference(entry: &SecretEntry) -> String {
         out.push('\n');
     }
 
-    out.push_str("\n<!-- 密钥与账号已隐藏。 -->\n");
+    out.push_str("\n<!-- 密钥与账号已隐藏。本密钥由 lvault 管理，不写入文件。用法：\n");
+    out.push_str(&format!(
+        "  lvault run --secret {} -- <command>   # vault 需已解锁\n",
+        entry.name
+    ));
+    out.push_str("  lvault 已随安装加入 PATH；若命令不在 PATH，用 %LOCALAPPDATA%\\Local API Vault\\lvault.cmd\n");
+    out.push_str("  不要打印或粘贴密钥值。 -->\n");
     out
 }
 
@@ -336,6 +342,19 @@ mod tests {
         assert!(rendered.contains("NEWSFEED_API_KEY"));
         assert!(rendered.contains("market"));
         assert!(rendered.contains("production"));
+    }
+
+    #[test]
+    fn usage_hint_tells_the_ai_how_to_run_without_revealing_anything() {
+        let rendered = entry_reference(&entry());
+        assert!(rendered.contains("lvault run --secret NEWSFEED_API_KEY -- <command>"));
+        assert!(rendered.contains("%LOCALAPPDATA%\\Local API Vault\\lvault.cmd"));
+        assert!(rendered.contains("vault 需已解锁"));
+        assert!(rendered.contains("不要打印或粘贴密钥值"));
+        // The hint must never contain the value itself, nor the master passphrase.
+        assert!(!rendered.contains("super-secret-value"));
+        assert!(!rendered.contains("passphrase"));
+        assert!(!rendered.contains("vault.age"));
     }
 
     #[test]

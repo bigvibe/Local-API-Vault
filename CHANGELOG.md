@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+- 「复制参考资料」末尾新增接入指引：给 AI 一条可直接运行的命令，并注明 vault 需解锁、不打印密钥值、`lvault` 不在 PATH 时的 
+  `%LOCALAPPDATA%\Local API Vault\lvault.cmd` 兜底（依赖注入流程不再是口头说明）
+
 ## [0.2.0] - 2026-11-06
 
 - 新增 `docs/roadmap.md`：每月一个小版本、一个行为的固定节奏与候选池
