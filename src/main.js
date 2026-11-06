@@ -8,6 +8,7 @@ const state = {
   selectedId: null,
   enabled: true,
   filter: "all",
+  tag: "",
   query: "",
   secret: "",
   clipboardTimer: null,
@@ -139,6 +140,46 @@ function tagsForSummary(summary) {
   return Array.isArray(summary.tags) ? summary.tags : [];
 }
 
+function collectTagCounts() {
+  const byKey = new Map();
+  for (const summary of state.entries) {
+    for (const raw of tagsForSummary(summary)) {
+      const label = String(raw).trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      const current = byKey.get(key);
+      if (current) current.count += 1;
+      else byKey.set(key, { label, count: 1 });
+    }
+  }
+  return [...byKey.values()].sort(
+    (a, b) => b.count - a.count || a.label.localeCompare(b.label, "zh")
+  );
+}
+
+function updateTagFilter() {
+  const select = $("#tag-filter");
+  const previous = state.tag;
+  select.replaceChildren();
+  const all = document.createElement("option");
+  all.value = "";
+  all.textContent = "全部标签";
+  select.append(all);
+  const tags = collectTagCounts();
+  for (const tag of tags) {
+    const option = document.createElement("option");
+    option.value = tag.label.toLowerCase();
+    option.textContent = `${tag.label}（${tag.count}）`;
+    select.append(option);
+  }
+  if ([...select.options].some((o) => o.value === previous)) {
+    select.value = previous;
+  } else {
+    state.tag = "";
+    select.value = "";
+  }
+}
+
 function matchesFilter(summary) {
   const enabled = summary.enabled !== false;
   const filterMatch =
@@ -148,6 +189,12 @@ function matchesFilter(summary) {
         ? enabled
         : enabled && summary.kind === state.filter;
   if (!filterMatch) return false;
+  if (state.tag) {
+    const hit = tagsForSummary(summary).some(
+      (tag) => String(tag).trim().toLowerCase() === state.tag
+    );
+    if (!hit) return false;
+  }
   if (!state.query) return true;
   const haystack = [
     summary.name,
@@ -164,6 +211,7 @@ function matchesFilter(summary) {
 
 function renderEntries() {
   entryList.replaceChildren();
+  updateTagFilter();
   const visible = state.entries.filter(matchesFilter);
   const enabledCount = state.entries.filter((entry) => entry.enabled !== false).length;
   const disabledCount = state.entries.length - enabledCount;
@@ -867,8 +915,15 @@ async function importEnv() {
     if (!path) return;
     const result = await invoke("import_env", { path });
     await loadEntries();
+    // Imported entries all carry the `imported` tag — land on it directly so
+    // the user sees (and can prune) exactly what was just created.
+    if (result.importedCount > 0) {
+      state.tag = "imported";
+      renderEntries();
+    }
     const skipped = result.skippedCount ? `，跳过 ${result.skippedCount} 个重复项` : "";
-    showToast(`已导入 ${result.importedCount} 个环境变量${skipped}。`, "success");
+    const jumped = result.importedCount > 0 ? "，并已按标签 imported 筛选" : "";
+    showToast(`已导入 ${result.importedCount} 个环境变量${skipped}${jumped}。`, "success");
   } catch (error) {
     showToast(errorMessage(error), "error");
   }
@@ -1000,6 +1055,11 @@ function bindEvents() {
       state.filter = button.dataset.filter;
       renderEntries();
     });
+  });
+
+  $("#tag-filter").addEventListener("change", (event) => {
+    state.tag = event.target.value;
+    renderEntries();
   });
 }
 

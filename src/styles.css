@@ -514,8 +514,45 @@ main {
 .filter-row {
   display: flex;
   gap: 5px;
-  padding: 0 4px 15px;
+  padding: 0 4px 10px;
   overflow-x: auto;
+}
+
+.tag-filter-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 4px 13px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  background: rgba(9, 15, 26, 0.7);
+}
+
+.tag-filter-field:focus-within {
+  border-color: rgba(139, 124, 255, 0.65);
+  box-shadow: 0 0 0 3px rgba(139, 124, 255, 0.1);
+}
+
+.tag-filter-field span {
+  font-size: 12px;
+}
+
+.tag-filter-field select {
+  min-width: 0;
+  height: 35px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.tag-filter-field select option {
+  background: var(--panel);
+  color: var(--text);
 }
 
 .filter-button {
