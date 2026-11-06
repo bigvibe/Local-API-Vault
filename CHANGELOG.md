@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] - 2026-11-06
 
 - 「复制参考资料」末尾新增接入指引：给 AI 一条可直接运行的命令，并注明 vault 需解锁、
   不打印密钥值、`lvault` 不在 PATH 时的 `%LOCALAPPDATA%\Local API Vault\lvault.cmd` 兜底
