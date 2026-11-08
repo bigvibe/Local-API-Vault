@@ -1135,3 +1135,48 @@ main {
     flex: 1;
   }
 }
+
+/* Desktop app layout: keep the two panes inside the window and let each
+   scroll on its own, so selecting a low entry never requires scrolling the
+   whole page to reach the top of the detail form. */
+@media (min-width: 901px) {
+  #app {
+    display: flex;
+    height: 100vh;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  main {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .workspace {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .entry-list {
+    min-height: 0;
+  }
+
+  .empty-editor {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .editor {
+    min-height: 0;
+    overflow-y: auto;
+  }
+}

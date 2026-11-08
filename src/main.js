@@ -26,6 +26,7 @@ const workspace = $("#workspace");
 const entryList = $("#entry-list");
 const entryForm = $("#entry-form");
 const emptyEditor = $("#empty-editor");
+const editorPanel = $("#editor-panel");
 const formMessage = $("#form-message");
 const toast = $("#toast");
 const passwordModal = $("#password-modal");
@@ -126,6 +127,8 @@ function resetEditor() {
   formMessage.textContent = "";
   emptyEditor.hidden = true;
   entryForm.hidden = false;
+  highlightSelection();
+  scrollEditorToTop();
 }
 
 function showEmptyEditor() {
@@ -134,6 +137,14 @@ function showEmptyEditor() {
   state.selectionToken += 1;
   entryForm.hidden = true;
   emptyEditor.hidden = false;
+  scrollEditorToTop();
+}
+
+// Keep the detail pane showing its heading when the selection changes. The
+// pane scrolls on its own (desktop), so a leftover scroll position would
+// otherwise land the user in the middle of the previous entry's form.
+function scrollEditorToTop() {
+  editorPanel.scrollTop = 0;
 }
 
 function tagsForSummary(summary) {
@@ -252,9 +263,18 @@ function renderEntries() {
     const arrow = document.createElement("span");
     arrow.className = "entry-arrow";
     arrow.textContent = "›";
+    item.dataset.entryId = summary.id;
     item.append(icon, content, arrow);
     item.addEventListener("click", () => selectEntry(summary.id));
     entryList.append(item);
+  }
+}
+
+// Update the highlight in place. Rebuilding the list on every click would
+// reset its scroll position, making a low entry jump back to the top.
+function highlightSelection() {
+  for (const item of entryList.querySelectorAll(".entry-item")) {
+    item.classList.toggle("selected", item.dataset.entryId === state.selectedId);
   }
 }
 
@@ -343,7 +363,7 @@ async function selectEntry(id) {
   const token = ++state.selectionToken;
   state.selectedId = id;
   state.enabled = summary.enabled !== false;
-  renderEntries();
+  highlightSelection();
   emptyEditor.hidden = true;
   entryForm.hidden = false;
   $("#editor-title").textContent = "编辑密钥";
@@ -351,6 +371,7 @@ async function selectEntry(id) {
   $("#delete-entry").hidden = false;
   $("#copy-reference").hidden = false;
   fillForm(summary);
+  scrollEditorToTop();
 
   try {
     const revealed = await invoke("reveal_entry", { id });
