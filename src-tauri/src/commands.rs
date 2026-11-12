@@ -1,7 +1,8 @@
 use crate::audit::AuditEvent;
 use crate::model::{
-    now_millis, CreateVaultResult, EntryInput, EntrySummary, ImportResult, RebuildResult,
-    RevealedSecret, RotationResult, RunProfile, RunProfileInput, SecretEntry, VaultStatus,
+    now_millis, BackupInfo, CreateVaultResult, EntryInput, EntrySummary, ImportResult,
+    RebuildResult, RestoreResult, RevealedSecret, RotationResult, RunProfile, RunProfileInput,
+    SecretEntry, VaultStatus,
 };
 use crate::state::{AppState, UnlockedVault};
 use crate::vault::{default_vault_path as default_path, VaultError, VaultFile};
@@ -525,6 +526,80 @@ pub fn rotate_recovery_identity(state: State<'_, Arc<AppState>>) -> Result<Rotat
         recovery_public_key,
         vault_backup: outcome.vault_backup.to_string_lossy().into_owned(),
         sidecar_backup: outcome.sidecar_backup.to_string_lossy().into_owned(),
+    })
+}
+
+/// Check an exported backup without changing anything. Counts only.
+#[tauri::command]
+pub fn inspect_backup(path: String, passphrase: String) -> Result<BackupInfo, String> {
+    let path = PathBuf::from(path.trim());
+    if path.as_os_str().is_empty() {
+        return Err("请选择备份文件。".to_owned());
+    }
+    let document = VaultFile::load(&path, &passphrase).map_err(|error| match error {
+        VaultError::NotFound => "找不到这个备份文件。".to_owned(),
+        VaultError::InvalidPassphrase => {
+            "主密码不正确，或者这个备份不是身份格式（缺少配套的 .identity.age）。".to_owned()
+        }
+        VaultError::InvalidData => "备份文件格式无效或已损坏。".to_owned(),
+        VaultError::UnsupportedVersion => "备份的版本不受支持，请升级应用。".to_owned(),
+        VaultError::AlreadyExists => "备份文件状态异常。".to_owned(),
+        VaultError::NoRecoveryIdentity => "备份文件状态异常。".to_owned(),
+        VaultError::Io(_) => "读取备份失败。".to_owned(),
+    })?;
+    Ok(BackupInfo {
+        entries: document.entries.len(),
+        disabled: document
+            .entries
+            .iter()
+            .filter(|entry| !entry.enabled)
+            .count(),
+        profiles: document.profiles.len(),
+        has_identity: VaultFile::has_identity_sidecar(&path),
+    })
+}
+
+/// Restore the currently open vault from an exported backup.
+///
+/// The vault that was in place is kept next to it as `<name>.before-restore-<stamp>`,
+/// so a restore is always undoable by hand.
+#[tauri::command]
+pub fn restore_backup(
+    state: State<'_, Arc<AppState>>,
+    source: String,
+    passphrase: String,
+) -> Result<RestoreResult, String> {
+    let source = PathBuf::from(source.trim());
+    if source.as_os_str().is_empty() {
+        return Err("请选择备份文件。".to_owned());
+    }
+    let (destination, current_passphrase) = state.with_mut(|vault| {
+        Ok((
+            vault.path.clone(),
+            vault.passphrase.expose_secret().to_owned(),
+        ))
+    })?;
+    let outcome = VaultFile::restore_from(&source, &destination, &passphrase, &current_passphrase)
+        .map_err(|error| match error {
+            VaultError::NotFound => "找不到这个备份文件。".to_owned(),
+            VaultError::InvalidPassphrase => {
+                "主密码不正确，或者这个备份不是身份格式（缺少配套的 .identity.age）。".to_owned()
+            }
+            VaultError::InvalidData => "备份文件格式无效或已损坏。".to_owned(),
+            VaultError::UnsupportedVersion => "备份的版本不受支持，请升级应用。".to_owned(),
+            VaultError::AlreadyExists => "备份文件状态异常。".to_owned(),
+            VaultError::NoRecoveryIdentity => "备份文件状态异常。".to_owned(),
+            VaultError::Io(_) => "读取或写入 Vault 失败。".to_owned(),
+        })?;
+    let entries = outcome.document.entries.len();
+    let vault = UnlockedVault::from_parts(destination, current_passphrase, outcome.document);
+    state.replace(vault)?;
+    Ok(RestoreResult {
+        status: state.status()?,
+        backup_path: outcome
+            .backup
+            .map(|path| path.to_string_lossy().into_owned()),
+        entries,
     })
 }
 

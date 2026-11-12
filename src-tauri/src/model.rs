@@ -231,6 +231,26 @@ pub struct RotationResult {
     pub sidecar_backup: String,
 }
 
+/// What a backup contains — counts only, never names or values.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupInfo {
+    pub entries: usize,
+    pub disabled: usize,
+    pub profiles: usize,
+    pub has_identity: bool,
+}
+
+/// Result of restoring a vault from a backup.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreResult {
+    #[serde(flatten)]
+    pub status: VaultStatus,
+    pub backup_path: Option<String>,
+    pub entries: usize,
+}
+
 pub fn now_millis() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

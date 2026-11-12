@@ -113,6 +113,8 @@ pub fn run() {
             commands::change_passphrase,
             commands::enable_recovery,
             commands::rotate_recovery_identity,
+            commands::inspect_backup,
+            commands::restore_backup,
             commands::save_recovery_identity,
             commands::recover_vault,
             commands::lock_vault,

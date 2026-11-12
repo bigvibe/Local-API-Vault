@@ -833,6 +833,10 @@ main {
   font-size: 12px;
 }
 
+.form-message.ok {
+  color: var(--success);
+}
+
 .toast {
   position: fixed;
   right: 24px;

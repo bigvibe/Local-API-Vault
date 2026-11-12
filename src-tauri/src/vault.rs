@@ -46,6 +46,13 @@ impl std::fmt::Debug for RotationOutcome {
     }
 }
 
+/// What a restore produced.
+#[derive(Debug)]
+pub struct RestoreOutcome {
+    pub document: VaultDocument,
+    pub backup: Option<PathBuf>,
+}
+
 /// Milliseconds since the epoch, used to stamp backup file names.
 fn timestamp() -> u128 {
     std::time::SystemTime::now()
@@ -330,6 +337,49 @@ impl VaultFile {
             identity: new_identity,
             vault_backup,
             sidecar_backup,
+        })
+    }
+
+    /// Restore a vault from an exported backup.
+    ///
+    /// The backup keeps the identity it was exported with, so the user's
+    /// recovery identity file still opens the restored vault. The vault that
+    /// was in place is kept as `<name>.before-restore-<stamp>`.
+    pub fn restore_from(
+        source: &Path,
+        destination: &Path,
+        passphrase: &str,
+        new_passphrase: &str,
+    ) -> Result<RestoreOutcome, VaultError> {
+        if source == destination {
+            return Err(VaultError::InvalidData);
+        }
+        let document = Self::load(source, passphrase)?;
+        let identity = if Self::has_identity_sidecar(source) {
+            Some(Self::load_identity(source, passphrase)?)
+        } else {
+            None
+        };
+
+        let stamp = timestamp();
+        let (backup, sidecar_backup) = stamped_pair(destination, "before-restore", stamp);
+        if destination.exists() {
+            copy_file_atomic(destination, &backup)?;
+        }
+        let sidecar_path = Self::identity_path(destination);
+        if sidecar_path.exists() {
+            copy_file_atomic(&sidecar_path, &sidecar_backup)?;
+        }
+
+        match identity {
+            Some(identity) => {
+                write_recovery_pair(destination, new_passphrase, &identity, &document)?
+            }
+            None => write_legacy(destination, new_passphrase, &document)?,
+        }
+        Ok(RestoreOutcome {
+            document,
+            backup: if backup.exists() { Some(backup) } else { None },
         })
     }
 
@@ -761,6 +811,67 @@ mod tests {
         assert!(matches!(error, VaultError::InvalidPassphrase));
         assert_eq!(std::fs::read(&path).unwrap(), before);
         assert!(VaultFile::load_with_identity(&path, &identity).is_ok());
+    }
+
+    #[test]
+    fn restoring_from_a_backup_keeps_the_identity_and_the_old_vault() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("vault.age");
+        let passphrase = "restore passphrase with enough entropy";
+        let identity = age::x25519::Identity::generate();
+        VaultFile::create_with_recovery(&path, passphrase, &identity).unwrap();
+        let mut document = VaultFile::load_with_identity(&path, &identity).unwrap();
+        document.entries.push(crate::model::SecretEntry {
+            id: "entry-id".into(),
+            name: "API_KEY".into(),
+            kind: "api-key".into(),
+            project: "app".into(),
+            environment: "development".into(),
+            username: String::new(),
+            secret: "value".into(),
+            url: String::new(),
+            notes: String::new(),
+            tags: vec![],
+            enabled: true,
+            created_at: 1,
+            updated_at: 1,
+        });
+        VaultFile::save(&path, passphrase, &document).unwrap();
+
+        // Export a backup, then change the live vault.
+        let backup = directory.path().join("backup.age");
+        VaultFile::copy_encrypted(&path, &backup).unwrap();
+        let mut changed = VaultFile::load_with_identity(&path, &identity).unwrap();
+        changed.entries.clear();
+        VaultFile::save(&path, passphrase, &changed).unwrap();
+
+        let outcome = VaultFile::restore_from(&backup, &path, passphrase, passphrase).unwrap();
+
+        // The entries came back, and the recovery identity still opens it.
+        assert_eq!(outcome.document.entries.len(), 1);
+        assert!(VaultFile::load_with_identity(&path, &identity).is_ok());
+        assert!(VaultFile::load(&path, passphrase).is_ok());
+
+        // The vault that was in place is still on disk.
+        let previous = outcome.backup.expect("应当保留恢复前的 Vault");
+        assert!(previous.exists());
+        assert!(VaultFile::load_with_identity(&previous, &identity).is_ok());
+    }
+
+    #[test]
+    fn restoring_rejects_the_wrong_passphrase() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("vault.age");
+        let passphrase = "restore passphrase with enough entropy";
+        let identity = age::x25519::Identity::generate();
+        VaultFile::create_with_recovery(&path, passphrase, &identity).unwrap();
+        let backup = directory.path().join("backup.age");
+        VaultFile::copy_encrypted(&path, &backup).unwrap();
+
+        let error =
+            VaultFile::restore_from(&backup, &path, "wrong passphrase entirely", passphrase)
+                .unwrap_err();
+        assert!(matches!(error, VaultError::InvalidPassphrase));
     }
 
     #[test]

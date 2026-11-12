@@ -109,6 +109,7 @@
               <div class="sidebar-actions">
                 <button id="import-env" class="text-button" type="button">导入 .env</button>
                 <button id="export-backup" class="text-button" type="button">导出加密备份</button>
+                <button id="restore-backup" class="text-button" type="button">从备份恢复</button>
                 <button id="change-password" class="text-button" type="button">修改主密码</button>
                 <button id="run-profiles" class="text-button" type="button">运行配置</button>
                 <button id="audit-log" class="text-button" type="button">读取记录</button>
@@ -290,6 +291,54 @@
             <button id="copy-recovery-key" class="button button-secondary" type="button">复制密钥</button>
             <button id="save-recovery-key" class="button button-primary" type="button">保存身份文件</button>
             <button id="finish-recovery-setup" class="button button-quiet" type="button">稍后设置</button>
+          </div>
+        </section>
+      </div>
+
+      <div id="backup-restore-modal" class="modal-backdrop" hidden>
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="backup-restore-title">
+          <div class="modal-heading">
+            <div>
+              <p class="eyebrow">RESTORE BACKUP</p>
+              <h2 id="backup-restore-title">从备份恢复</h2>
+            </div>
+            <button id="close-backup-restore" class="icon-button" type="button" aria-label="关闭">×</button>
+          </div>
+          <ol id="backup-restore-steps" class="recovery-steps">
+            <li>选回你<strong>导出的那份备份</strong>（<code>vault.age</code>）。</li>
+            <li>输入这把 Vault <strong>原来的主密码</strong>，用来校验备份能不能打开。</li>
+            <li>校验通过后<strong>恢复</strong>：当前 Vault 会被备份内容替换，旧的留在旁边。</li>
+          </ol>
+          <form id="backup-restore-form">
+            <label class="field">
+              <span>备份文件</span>
+              <div class="path-input-row">
+                <input id="backup-source-path" type="text" spellcheck="false" required />
+                <button id="choose-backup-source" class="input-action" type="button">选择文件</button>
+              </div>
+              <small class="field-help">备份是<strong>一对</strong>文件：<code>vault.age</code> 和旁边的 <code>vault.identity.age</code>，要放在同一个目录里。</small>
+            </label>
+            <label class="field">
+              <span>备份原来的主密码</span>
+              <input id="backup-passphrase" type="password" autocomplete="off" required />
+            </label>
+            <p id="backup-restore-message" class="form-message" role="status"></p>
+            <div class="button-row modal-actions">
+              <button id="inspect-backup" class="button button-secondary" type="button">校验备份</button>
+              <button id="confirm-restore" class="button button-primary" type="submit">恢复</button>
+            </div>
+          </form>
+          <div id="backup-restore-success" class="recovery-success" hidden>
+            <p class="recovery-success-title">恢复完成</p>
+            <ul>
+              <li>备份里的条目已经回到当前 Vault。</li>
+              <li>恢复前的 Vault 保留在旁边，文件名带 <code>.before-restore-…</code>，需要的话可以手动打开。</li>
+              <li>如果这份备份的主密码曾经泄露过，建议现在去侧栏「修改主密码」换一把。</li>
+              <li>建议重新「导出加密备份」一次，把最新状态存好。</li>
+            </ul>
+            <div class="button-row modal-actions">
+              <button id="finish-backup-restore" class="button button-primary" type="button">知道了</button>
+            </div>
           </div>
         </section>
       </div>

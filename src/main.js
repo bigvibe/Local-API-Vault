@@ -46,6 +46,8 @@ const recoverySetupMessage = $("#recovery-setup-message");
 const recoveryAccessModal = $("#recovery-access-modal");
 const recoveryForm = $("#recovery-form");
 const recoveryAccessMessage = $("#recovery-access-message");
+const backupRestoreModal = $("#backup-restore-modal");
+const backupRestoreMessage = $("#backup-restore-message");
 
 function selectedPath(value) {
   return Array.isArray(value) ? value[0] || null : value;
@@ -1089,6 +1091,108 @@ async function exportBackup() {
   }
 }
 
+function openBackupRestore() {
+  $("#backup-source-path").value = "";
+  $("#backup-passphrase").value = "";
+  backupRestoreMessage.textContent = "";
+  backupRestoreMessage.className = "form-message";
+  $("#backup-restore-form").hidden = false;
+  $("#backup-restore-steps").hidden = false;
+  $("#backup-restore-success").hidden = true;
+  backupRestoreModal.hidden = false;
+  window.setTimeout(() => $("#backup-source-path").focus(), 0);
+}
+
+function closeBackupRestore() {
+  backupRestoreModal.hidden = true;
+  $("#backup-restore-form").reset();
+  backupRestoreMessage.textContent = "";
+  $("#backup-restore-steps").hidden = false;
+  $("#backup-restore-success").hidden = true;
+}
+
+async function chooseBackupSource() {
+  try {
+    const selection = await open({
+      title: "选择备份文件",
+      multiple: false,
+      directory: false,
+      filters: [{ name: "Vault 备份", extensions: ["age"] }],
+    });
+    const path = selectedPath(selection);
+    if (path) $("#backup-source-path").value = path;
+  } catch (error) {
+    backupRestoreMessage.textContent = errorMessage(error);
+  }
+}
+
+async function inspectBackup() {
+  const source = $("#backup-source-path").value.trim();
+  const passphrase = $("#backup-passphrase").value;
+  if (!source) {
+    backupRestoreMessage.textContent = "请先选择备份文件。";
+    return;
+  }
+  if (!passphrase) {
+    backupRestoreMessage.textContent = "请输入备份原来的主密码。";
+    return;
+  }
+  const button = $("#inspect-backup");
+  setButtonBusy(button, true, "校验中…");
+  try {
+    const info = await invoke("inspect_backup", { path: source, passphrase });
+    const disabled = info.disabled ? `，${info.disabled} 个已停用` : "";
+    const profiles = info.profiles ? `，${info.profiles} 个运行配置` : "";
+    const identity = info.hasIdentity ? "（身份格式，配套 sidecar 在）" : "（口令格式）";
+    backupRestoreMessage.textContent =
+      `备份可以打开：${info.entries} 个条目${disabled}${profiles} ${identity}。`;
+    backupRestoreMessage.className = "form-message ok";
+  } catch (error) {
+    backupRestoreMessage.textContent = errorMessage(error);
+    backupRestoreMessage.className = "form-message";
+  } finally {
+    setButtonBusy(button, false);
+    $("#backup-passphrase").value = "";
+  }
+}
+
+async function restoreFromBackup(event) {
+  event.preventDefault();
+  const source = $("#backup-source-path").value.trim();
+  const passphrase = $("#backup-passphrase").value;
+  if (!source) {
+    backupRestoreMessage.textContent = "请先选择备份文件。";
+    return;
+  }
+  if (!passphrase) {
+    backupRestoreMessage.textContent = "请输入备份原来的主密码。";
+    return;
+  }
+
+  const confirmed = window.confirm(
+    "恢复会用备份内容替换当前 Vault。\n恢复前的 Vault 会保留在旁边（文件名带 .before-restore-…）。\n\n确定继续吗？",
+  );
+  if (!confirmed) return;
+
+  const button = $("#confirm-restore");
+  setButtonBusy(button, true, "恢复中…");
+  try {
+    const result = await invoke("restore_backup", { source, passphrase });
+    $("#backup-restore-form").hidden = true;
+    $("#backup-restore-steps").hidden = true;
+    $("#backup-restore-success").hidden = false;
+    await loadEntries();
+    await loadProfiles();
+    showToast(`已从备份恢复 ${result.entries} 个条目。`, "success");
+  } catch (error) {
+    backupRestoreMessage.textContent = errorMessage(error);
+    backupRestoreMessage.className = "form-message";
+  } finally {
+    setButtonBusy(button, false);
+    $("#backup-passphrase").value = "";
+  }
+}
+
 async function lockVault(alreadyLocked = false) {
   try {
     if (!alreadyLocked) await invoke("lock_vault");
@@ -1158,6 +1262,12 @@ function bindEvents() {
   $("#choose-vault").addEventListener("click", chooseVault);
   $("#import-env").addEventListener("click", importEnv);
   $("#export-backup").addEventListener("click", exportBackup);
+  $("#restore-backup").addEventListener("click", openBackupRestore);
+  $("#close-backup-restore").addEventListener("click", closeBackupRestore);
+  $("#finish-backup-restore").addEventListener("click", closeBackupRestore);
+  $("#choose-backup-source").addEventListener("click", chooseBackupSource);
+  $("#inspect-backup").addEventListener("click", inspectBackup);
+  $("#backup-restore-form").addEventListener("submit", restoreFromBackup);
   $("#change-password").addEventListener("click", openPasswordModal);
   $("#run-profiles").addEventListener("click", openProfileModal);
   $("#audit-log").addEventListener("click", openAuditModal);
