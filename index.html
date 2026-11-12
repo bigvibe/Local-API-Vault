@@ -31,6 +31,14 @@
             <p class="hero-description">
               一个简单、离线、面向开发者的 API 密钥保险箱。默认不上传、不注册、不追踪。
             </p>
+            <div class="recovery-entry" role="note" aria-label="忘记主密码时该点哪个">
+              <p class="recovery-entry-title">忘记主密码了？这两个按钮别点错</p>
+              <ul>
+                <li><strong>恢复 Vault</strong>：用创建时保存的恢复身份文件打开<strong>原来的数据</strong>，条目一个不少。</li>
+                <li><strong>重建 Vault</strong>：创建<strong>空的</strong>新 Vault。原文件保留成 <code>vault.age.before-rebuild-…</code>，旧主密码仍能打开它，但当前这个 Vault 是空的。</li>
+              </ul>
+              <p class="recovery-entry-hint">没有恢复身份文件，就只剩重建这一条路——主密码本身没有任何找回途径。</p>
+            </div>
           </div>
           <div class="onboarding-card">
             <div class="card-heading">
@@ -57,7 +65,7 @@
               <button id="rebuild-vault" class="button button-quiet" type="button">重建 Vault</button>
               <button id="recover-vault" class="button button-quiet" type="button">恢复 Vault</button>
             </div>
-              <p class="rebuild-note">重建会保留原 Vault 文件，并创建一个空的新 Vault。</p>
+            <p class="rebuild-note">重建会保留原 Vault 文件，并创建一个空的新 Vault。</p>
             <p class="privacy-note"><span aria-hidden="true">●</span> 所有解密操作都在本机完成；解锁后可持续使用，点击锁定即可清理。</p>
             <div class="onboard-brief" role="note" aria-label="第一次使用前需要知道的三件事">
               <p class="onboard-brief-title">第一次使用？先说清楚这三件事</p>
@@ -291,11 +299,15 @@
           <div class="modal-heading">
             <div>
               <p class="eyebrow">RECOVERY ACCESS</p>
-              <h2 id="recovery-access-title">使用恢复密钥</h2>
+              <h2 id="recovery-access-title">用恢复身份打开 Vault</h2>
             </div>
             <button id="close-recovery-access" class="icon-button" type="button" aria-label="关闭">×</button>
           </div>
-          <p class="modal-description">恢复流程需要原 Vault 和恢复身份文件；<code>Vault.identity.age</code> 只需在以后使用主密码解锁时保留。</p>
+          <ol id="recovery-steps" class="recovery-steps">
+            <li>选回<strong>原来那个</strong> Vault 文件——下面已经填好默认路径。</li>
+            <li>选出创建时保存的<strong>恢复身份文件</strong>（内容是一行 <code>AGE-SECRET-KEY-1…</code>）。</li>
+            <li>设一个<strong>新的主密码</strong>，以后用它解锁。</li>
+          </ol>
           <form id="recovery-form">
             <label class="field">
               <span>原 Vault 路径</span>
@@ -311,6 +323,7 @@
             <label class="field">
               <span>新的主密码</span>
               <input id="recovery-new-password" type="password" minlength="12" autocomplete="new-password" required />
+              <small class="field-help">至少 12 个字符。旧主密码会立刻失效。</small>
             </label>
             <label class="field">
               <span>确认新的主密码</span>
@@ -322,6 +335,17 @@
               <button id="confirm-recovery" class="button button-primary" type="submit">恢复并设置新密码</button>
             </div>
           </form>
+          <div id="recovery-success" class="recovery-success" hidden>
+            <p class="recovery-success-title">恢复完成</p>
+            <ul>
+              <li>原来的条目都在，Vault 已用新主密码重新加密保存。</li>
+              <li>恢复身份文件<strong>依然有效</strong>——以后忘了新密码还能用它，请继续妥善保存。</li>
+              <li>建议现在重新「导出加密备份」一次，和 <code>Vault.identity.age</code> 放在一起。</li>
+            </ul>
+            <div class="button-row modal-actions">
+              <button id="finish-recovery" class="button button-primary" type="button">知道了</button>
+            </div>
+          </div>
         </section>
       </div>
 

@@ -866,6 +866,9 @@ function openRecoveryAccess() {
   $("#recovery-new-password").value = "";
   $("#recovery-confirm-password").value = "";
   recoveryAccessMessage.textContent = "";
+  recoveryForm.hidden = false;
+  $("#recovery-steps").hidden = false;
+  $("#recovery-success").hidden = true;
   recoveryAccessModal.hidden = false;
   window.setTimeout(() => $("#recovery-vault-path").focus(), 0);
 }
@@ -874,6 +877,8 @@ function closeRecoveryAccess() {
   recoveryAccessModal.hidden = true;
   recoveryForm.reset();
   recoveryAccessMessage.textContent = "";
+  $("#recovery-steps").hidden = false;
+  $("#recovery-success").hidden = true;
 }
 
 async function chooseRecoveryIdentity() {
@@ -917,9 +922,13 @@ async function recoverVault(event) {
       identityPath,
       newPassphrase,
     });
-    closeRecoveryAccess();
     vaultPathInput.value = path;
     passphraseInput.value = "";
+    // Stay open and switch to the "what happened / what to do now" panel:
+    // after a recovery the user needs those three facts, not a toast.
+    recoveryForm.hidden = true;
+    $("#recovery-steps").hidden = true;
+    $("#recovery-success").hidden = false;
     showWorkspace(true);
     await loadEntries();
     showToast("Vault 已恢复，新的主密码已生效。", "success");
@@ -1138,6 +1147,7 @@ function bindEvents() {
   $("#save-recovery-key").addEventListener("click", saveRecoveryKey);
   $("#close-recovery-access").addEventListener("click", closeRecoveryAccess);
   $("#cancel-recovery").addEventListener("click", closeRecoveryAccess);
+  $("#finish-recovery").addEventListener("click", closeRecoveryAccess);
   $("#choose-recovery-identity").addEventListener("click", chooseRecoveryIdentity);
   recoveryForm.addEventListener("submit", recoverVault);
   passwordForm.addEventListener("submit", changePassword);

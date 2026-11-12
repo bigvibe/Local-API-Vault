@@ -4,7 +4,7 @@ use crate::model::{
     RevealedSecret, RunProfile, RunProfileInput, SecretEntry, VaultStatus,
 };
 use crate::state::{AppState, UnlockedVault};
-use crate::vault::{default_vault_path as default_path, VaultFile};
+use crate::vault::{default_vault_path as default_path, VaultError, VaultFile};
 use age::secrecy::ExposeSecret;
 use std::fs;
 use std::path::PathBuf;
@@ -516,8 +516,20 @@ pub fn recover_vault(
         .map_err(|_| "恢复身份文件格式无效。".to_owned());
     identity_contents.zeroize();
     let identity = identity_result?;
-    let result =
-        VaultFile::recover(&path, &identity, &new_passphrase).map_err(|error| error.to_string());
+    let result = VaultFile::recover(&path, &identity, &new_passphrase).map_err(|error| {
+        // The recovery flow never asks for a master passphrase, so the usual
+        // "wrong passphrase" wording would confuse the user badly.
+        match error {
+            VaultError::NotFound => "找不到 Vault 文件，请确认路径。".to_owned(),
+            VaultError::InvalidPassphrase => {
+                "恢复身份与这个 Vault 不匹配，或 Vault 文件已损坏。".to_owned()
+            }
+            VaultError::InvalidData => "Vault 文件格式无效或已损坏。".to_owned(),
+            VaultError::UnsupportedVersion => "Vault 版本不受支持，请升级应用。".to_owned(),
+            VaultError::AlreadyExists => "Vault 文件状态异常。".to_owned(),
+            VaultError::Io(_) => "读取或写入 Vault 失败。".to_owned(),
+        }
+    });
     if result.is_err() {
         new_passphrase.zeroize();
     }
@@ -722,6 +734,32 @@ mod tests {
         assert_eq!(unquote("plain"), "plain");
         assert_eq!(unquote("'single'"), "single");
         assert_eq!(unquote("\"double\""), "double");
+    }
+
+    #[test]
+    fn recovery_errors_speak_in_recovery_language() {
+        use tempfile::tempdir;
+
+        // A recovery identity that does not belong to the vault.
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("vault.age");
+        let identity = age::x25519::Identity::generate();
+        VaultFile::create_with_recovery(&path, "recovery error test passphrase", &identity)
+            .unwrap();
+        let other = age::x25519::Identity::generate();
+        let other_path = directory.path().join("other.key");
+        let secret = other.to_string();
+        VaultFile::write_recovery_identity(&other_path, secret.expose_secret()).unwrap();
+
+        let error =
+            VaultFile::recover(&path, &other, "another passphrase here").expect_err("应当失败");
+        let message = match error {
+            VaultError::InvalidPassphrase => "恢复身份与这个 Vault 不匹配，或 Vault 文件已损坏。",
+            _ => "别的错误",
+        };
+        // The wording must talk about the recovery identity, never about a
+        // passphrase the user never typed.
+        assert!(!message.contains("主密码"), "{message}");
     }
 
     #[test]

@@ -27,11 +27,22 @@ age 规范不允许在同一个 age 文件中混用 passphrase recipient 和公�
 
 ### 忘记主密码
 
+界面上的「恢复 Vault」是一个三步向导，按顺序做：
+
 - 选择原 Vault 文件
 - 选择保存的 recovery identity 文件
 - 输入新的主密码
+
+底下做的事：
+
 - 使用 recovery identity 解密主 Vault
 - 用同一个 identity 和新主密码重新写入主 Vault 与 identity sidecar
+
+因为 identity 没有换，恢复身份文件在恢复之后**依然有效**——它始终是「等同主密码」的那把钥匙，
+必须继续保存好。旧主密码则立即失效。
+
+恢复身份文件与 Vault 不匹配时，报错说的是「恢复身份与这个 Vault 不匹配，或 Vault 文件已损坏」，
+不会说「主密码错误」——这条路径里用户根本没有输入主密码。
 
 恢复身份文件本身即可解密主 Vault；identity sidecar 主要用于主密码解锁。
 

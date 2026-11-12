@@ -1080,6 +1080,67 @@ main {
   line-height: 1.7;
 }
 
+.recovery-entry {
+  margin: 26px 0 0;
+  padding: 15px 17px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(9, 15, 26, 0.5);
+}
+
+.recovery-entry-title {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.recovery-entry ul {
+  margin: 0;
+  padding-left: 17px;
+  color: var(--muted-strong);
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.recovery-entry-hint {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.recovery-steps {
+  margin: 14px 0 18px;
+  padding-left: 19px;
+  color: var(--muted-strong);
+  font-size: 11px;
+  line-height: 1.85;
+}
+
+.recovery-steps strong {
+  color: var(--text);
+}
+
+.recovery-success {
+  padding: 4px 0 0;
+}
+
+.recovery-success-title {
+  margin: 12px 0 10px;
+  color: var(--success);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.recovery-success ul {
+  margin: 0 0 18px;
+  padding-left: 18px;
+  color: var(--muted-strong);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
 .profile-form-grid {
   padding-top: 0;
 }
