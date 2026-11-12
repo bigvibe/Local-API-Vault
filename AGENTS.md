@@ -61,9 +61,22 @@ contain secret values, and they only appear while the vault is unlocked.
 (`%LOCALAPPDATA%\Local API Vault\lvault.cmd`). Use the full path if that folder
 is not on `PATH`.
 
-`lvault` deliberately exposes only `get` and `run`. It is a thin wrapper over
+`lvault` deliberately exposes only `get`, `run` and `verify`. It is a thin wrapper over
 `local-api-vault-cli.exe`, whose `get`/`list` verbs prompt for the master
 passphrase — do not use those.
+
+`lvault verify` is a read-only health check of the vault **files**: it never asks
+for a passphrase, never prints an entry name or a secret, and never writes
+anything. Run it when the user wants to know whether their vault is still
+intact:
+
+```powershell
+lvault verify
+```
+
+Exit code `0` means no problem was found, `1` means at least one check failed.
+Do not pass `--identity` (the recovery identity file) unless the user asks for
+that check explicitly — you must not read the recovery identity yourself.
 
 ## API contracts are not secrets
 
@@ -114,7 +127,7 @@ restores a value under `HKCU\...\Run`. That is expected.
 | `src-tauri/src/state.rs` | in-memory unlocked session |
 | `src-tauri/src/commands.rs` | Tauri commands (the frontend API) |
 | `src-tauri/src/autostart.rs` | optional per-user start-at-login toggle |
-| `src-tauri/src/bin/local-api-vault-cli.rs` | CLI (`list`, `get`, `pipe-get`, `run`) |
+| `src-tauri/src/bin/local-api-vault-cli.rs` | CLI (`list`, `get`, `pipe-get`, `run`, `verify`) |
 | `src/` | frontend, vanilla JS/CSS |
 | `docs/` | security model, client contract, MVP scope |
 

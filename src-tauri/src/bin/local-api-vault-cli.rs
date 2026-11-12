@@ -2,6 +2,7 @@ use local_api_vault_lib::{
     bridge::{self, ClientError},
     project_config,
     vault::{default_vault_path, VaultFile},
+    verify,
 };
 use std::env;
 use std::io::{self, Write};
@@ -48,10 +49,12 @@ fn usage() -> &'static str {
   local-api-vault-cli run <profile>
   local-api-vault-cli run [--cwd <path>] --secret <NAME> [--project <name>] [--environment <name>] -- <command>
   local-api-vault-cli run [--cwd <path>] -- <command>   （自动读取当前目录的 .lvault.toml）
+  local-api-vault-cli verify [--vault <path>] [--identity <恢复身份文件>]
 
 主密码只通过已解锁的 Windows Named Pipe 注入，不会落成 .env 文件。
 在项目根目录放一个 .lvault.toml（vars = ["KEY_NAME"]，只有名字、没有值）后，可省去 --secret；
-lvault run -- <command> 会注入该文件列出的全部条目。"#
+lvault run -- <command> 会注入该文件列出的全部条目。
+verify 只读检查 Vault 完整性：不索要主密码，不打印任何密钥值，也不会改任何文件。"#
 }
 
 fn main() {
@@ -71,6 +74,10 @@ fn run() -> Result<(), String> {
 
     if command == "run" {
         return run_with_pipe(&mut args);
+    }
+
+    if command == "verify" {
+        return run_verify(&mut args);
     }
 
     let mut vault = None;
@@ -142,6 +149,37 @@ fn run() -> Result<(), String> {
                 .map_err(|_| "无法写入标准输出。".to_owned())?;
         }
         _ => return Err(format!("未知命令: {command}\n\n{}", usage())),
+    }
+    Ok(())
+}
+
+/// `verify` 只读校验 Vault 完整性。
+///
+/// 不索要主密码、不联网、不改任何文件，也不打印任何条目名或密钥值；
+/// 只有显式给了 `--identity`（恢复身份文件）才会真的解密一次。
+fn run_verify<I>(args: &mut I) -> Result<(), String>
+where
+    I: Iterator<Item = String>,
+{
+    let mut vault = None;
+    let mut identity = None;
+    while let Some(argument) = args.next() {
+        match argument.as_str() {
+            "--vault" => vault = Some(next_value(args, "--vault")?),
+            "--identity" => identity = Some(next_value(args, "--identity")?),
+            _ => return Err(format!("未知参数: {argument}\n\n{}", usage())),
+        }
+    }
+
+    let vault =
+        PathBuf::from(vault.unwrap_or_else(|| default_vault_path().to_string_lossy().into_owned()));
+    let report = verify::verify(&vault, identity.as_deref().map(Path::new));
+    print!("{}", verify::render(&report));
+    io::stdout()
+        .flush()
+        .map_err(|_| "无法写入标准输出。".to_owned())?;
+    if report.has_failure() {
+        std::process::exit(1);
     }
     Ok(())
 }

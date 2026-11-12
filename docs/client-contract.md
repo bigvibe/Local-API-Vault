@@ -212,6 +212,7 @@ def get_secret(name, project=None, environment=None):
 - Windows Named Pipe Bridge 已在应用进程内运行
 - 当前支持 `get` 请求、`profile` 请求和 CLI `run` 注入环境变量
 - 运行配置保存在加密 Vault 中，只包含引用信息
-- 安装目录提供 `lvault` 包装命令，只暴露 `get` 与 `run`
+- 安装目录提供 `lvault` 包装命令，只暴露 `get`、`run` 与 `verify`
+- `verify` 直接读 Vault 文件，**不经过 Pipe**：只读、不索要主密码、不打印密钥值，因此协议没有变化
 - 不支持通过 Pipe 列目录
 - 尚未实现 HTTP 监听、固定 TCP 端口或量化策略适配

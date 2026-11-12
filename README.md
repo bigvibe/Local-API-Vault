@@ -86,6 +86,7 @@ PowerShell 窗口。如果提示找不到命令，看[CLI 一节](#cli)。
   - 导入**不过滤任何键值**（包括路径、开关等“不像密钥”的配置项）——宁可多存勿漏存；
     导入后可在条目列表里逐个删除你不需要保留的项
 - 原生文件选择器和加密备份导出
+- `lvault verify` 只读校验 Vault 完整性（不索要主密码、不打印密钥值）
 - 修改主密码时重新加密 Vault
 - 最小化到系统托盘，托盘菜单可重新显示或退出
 - 可选开机自启动，登录后静默进入托盘且保持锁定
@@ -183,14 +184,47 @@ lvault run -- npm run dev
 - 同时给了 `--secret` 时以命令行为准，`.lvault.toml` 不参与
 - 上限：16 KB、最多 64 个名字、只允许顶层 `vars`
 
-`lvault` 是安装目录下的安全包装命令，只暴露两个动词：
+`lvault` 是安装目录下的安全包装命令，只暴露三个动词：
 
 ```powershell
 lvault get OPENAI_API_KEY --project web-app --environment development
 lvault run web-dev
+lvault verify
 ```
 
 `lvault get` 读取时不会索要主密码，它只会通过已解锁应用的 Named Pipe 取值，因此适合脚本和 AI 助手调用。具体约定见 [`AGENTS.md`](AGENTS.md)。
+
+### `lvault verify`：只读体检
+
+想知道「我的 Vault 还是好的吗」，跑一次就行：
+
+```powershell
+lvault verify
+```
+
+```text
+Vault 校验：C:\Users\Admin\.local-api-vault\vault.age
+[通过] Vault 文件可读：359 字节
+[通过] Vault 文件格式有效：age v1，X25519 身份加密
+[通过] 口令 sidecar 存在且格式有效：vault.identity.age
+[跳过] 解密校验未执行：未提供恢复身份文件；加 --identity <恢复身份文件> 可验证「能不能真的打开」
+[注意] 口令 sidecar 的内容未校验：解开它需要主密码，verify 不索要主密码
+
+结论：文件层面正常，但没做解密校验；加 --identity <恢复身份文件> 可完整验证。
+```
+
+- **只读**：不改任何文件，不联网
+- **不索要主密码**：也不需要应用在运行或解锁
+- **不打印任何条目名或密钥值**：最多报「几个条目、几个已停用、几个运行配置」
+- 退出码 `0` = 没发现问题，`1` = 有失败项
+
+再加上 `--identity <恢复身份文件>`，它会真的解密一次（只在内存里），用来回答「这份恢复身份到底还能不能打开这个 Vault」：
+
+```powershell
+lvault verify --identity D:\backup\recovery.key
+```
+
+主密码加密的 `vault.identity.age` **内容**始终不会被校验——解开它需要主密码，而 `verify` 不索要主密码。
 
 ## 复制参考资料
 

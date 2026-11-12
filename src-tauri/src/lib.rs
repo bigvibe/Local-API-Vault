@@ -7,6 +7,7 @@ pub mod project_config;
 mod redact;
 mod state;
 pub mod vault;
+pub mod verify;
 
 use state::AppState;
 use std::sync::{Arc, Mutex};

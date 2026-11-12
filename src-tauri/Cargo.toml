@@ -1,6 +1,6 @@
 [package]
 name = "local-api-vault"
-version = "0.4.0"
+version = "0.5.0"
 description = "A local-first, offline developer API key vault"
 license = "Apache-2.0"
 repository = "https://github.com/bigvibe/Local-API-Vault"
@@ -33,3 +33,6 @@ toml = "1.1"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"
+
+[dev-dependencies]
+age = "=0.12.1"
