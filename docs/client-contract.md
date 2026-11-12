@@ -16,6 +16,10 @@ Vault 已解锁 + 条目已启用     → 允许读取
 
 Named Pipe 还支持 `operation: "profile"`，只返回运行配置的目录、命令和密钥名称，不返回密钥值。
 
+Named Pipe 还支持 `operation: "audit"`，返回应用自己的读取记录（时间、进程、条目名）。
+它读的是记录缓冲，不是 Vault，因此同样要求 Vault 已解锁——记录里有条目名，
+而条目名正是锁定时不该露出来的东西。
+
 ## 读取请求
 
 ```json
@@ -23,17 +27,55 @@ Named Pipe 还支持 `operation: "profile"`，只返回运行配置的目录、�
   "version": 1,
   "project": "web-app",
   "environment": "development",
-  "name": "OPENAI_API_KEY"
+  "name": "OPENAI_API_KEY",
+  "cwd": "D:\\projects\\web",
+  "client": "lvault"
 }
 ```
 
 约束：
 
-- `name` 必填
+- `name` 必填（`operation: "audit"` 除外）
 - `environment` 建议必填
 - `project` 可以为空，表示默认项目
+- `cwd` / `client` **可选且自报**：调用方说自己在哪、是谁。服务端会记进读取记录，
+  但只当**线索**，不当证据——真正可信的是服务端自己问内核要到的 PID 与进程名
 - 不允许通过 URL、命令行参数或日志传递 Vault 主密码
 - 不允许客户端直接读取 `vault.age` 或 `vault.identity.age`
+
+## 读取记录
+
+```json
+{
+  "version": 1,
+  "ok": true,
+  "code": "ok",
+  "message": "ok",
+  "events": [
+    {
+      "at": 1794443415123,
+      "atLocal": "2026-11-12 10:30:15",
+      "pid": 12345,
+      "process": "local-api-vault-cli.exe",
+      "name": "OPENAI_API_KEY",
+      "project": "web-app",
+      "environment": "development",
+      "cwd": "D:\\projects\\web",
+      "client": "lvault",
+      "outcome": "ok"
+    }
+  ]
+}
+```
+
+约定：
+
+- `at` / `atLocal` / `pid` / `process` 由**服务端**产生，调用方改不了
+- `name` / `project` / `environment` / `cwd` / `client` 由调用方自报，只能当线索
+- 只有**条目名**，绝不含密钥值
+- `outcome` 是响应码：`ok` / `not_found` / `disabled` / `vault_locked`
+- 记录只放在内存里（最近 200 条），重启应用即清空，**不落盘**
+- 读记录本身不会被记进记录
 
 ## 成功响应
 
@@ -210,9 +252,11 @@ def get_secret(name, project=None, environment=None):
 - Vault 内部已有按 ID 读取的 Tauri 命令
 - CLI 已拒绝读取停用条目
 - Windows Named Pipe Bridge 已在应用进程内运行
-- 当前支持 `get` 请求、`profile` 请求和 CLI `run` 注入环境变量
+- 当前支持 `get` 请求、`profile` 请求、`audit` 请求和 CLI `run` 注入环境变量
 - 运行配置保存在加密 Vault 中，只包含引用信息
-- 安装目录提供 `lvault` 包装命令，只暴露 `get`、`run` 与 `verify`
+- 安装目录提供 `lvault` 包装命令，只暴露 `get`、`run`、`verify` 与 `audit`
 - `verify` 直接读 Vault 文件，**不经过 Pipe**：只读、不索要主密码、不打印密钥值，因此协议没有变化
+- `audit` 走 Pipe，读的是应用内存里的记录缓冲；协议只做了**加法**（新增可选请求字段与可选响应字段），
+  旧客户端忽略新字段、新客户端连旧服务端会收到 `invalid_request`
 - 不支持通过 Pipe 列目录
 - 尚未实现 HTTP 监听、固定 TCP 端口或量化策略适配

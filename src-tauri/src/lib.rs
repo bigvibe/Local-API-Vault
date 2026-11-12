@@ -1,3 +1,4 @@
+pub mod audit;
 mod autostart;
 pub mod bridge;
 mod commands;

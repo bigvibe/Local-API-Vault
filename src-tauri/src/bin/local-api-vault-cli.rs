@@ -50,11 +50,13 @@ fn usage() -> &'static str {
   local-api-vault-cli run [--cwd <path>] --secret <NAME> [--project <name>] [--environment <name>] -- <command>
   local-api-vault-cli run [--cwd <path>] -- <command>   （自动读取当前目录的 .lvault.toml）
   local-api-vault-cli verify [--vault <path>] [--identity <恢复身份文件>]
+  local-api-vault-cli audit [--limit <n>] [--json]
 
 主密码只通过已解锁的 Windows Named Pipe 注入，不会落成 .env 文件。
 在项目根目录放一个 .lvault.toml（vars = ["KEY_NAME"]，只有名字、没有值）后，可省去 --secret；
 lvault run -- <command> 会注入该文件列出的全部条目。
-verify 只读检查 Vault 完整性：不索要主密码，不打印任何密钥值，也不会改任何文件。"#
+verify 只读检查 Vault 完整性：不索要主密码，不打印任何密钥值，也不会改任何文件。
+audit 打印应用里的读取记录：什么时候、哪个进程、读了哪个条目名（只有名字，没有值）。"#
 }
 
 fn main() {
@@ -80,6 +82,10 @@ fn run() -> Result<(), String> {
         return run_verify(&mut args);
     }
 
+    if command == "audit" {
+        return run_audit(&mut args);
+    }
+
     let mut vault = None;
     let mut name = None;
     let mut project = None;
@@ -96,8 +102,14 @@ fn run() -> Result<(), String> {
 
     if command == "pipe-get" {
         let name = name.ok_or_else(|| "pipe-get 命令需要一个密钥名称。".to_owned())?;
-        let value = bridge::request_secret(&name, project.as_deref(), environment.as_deref())
-            .map_err(|error| explain(&error))?;
+        let current = current_directory();
+        let value = bridge::request_secret(
+            &name,
+            project.as_deref(),
+            environment.as_deref(),
+            current.as_deref(),
+        )
+        .map_err(|error| explain(&error))?;
         print!("{value}");
         io::stdout()
             .flush()
@@ -269,7 +281,9 @@ where
 }
 
 fn run_saved_profile(name: &str) -> Result<(), String> {
-    let profile = bridge::request_profile(name).map_err(|error| explain(&error))?;
+    let current = current_directory();
+    let profile =
+        bridge::request_profile(name, current.as_deref()).map_err(|error| explain(&error))?;
     execute_run(
         &profile.working_directory,
         &profile.command,
@@ -292,8 +306,16 @@ fn execute_run(
     let working_directory = PathBuf::from(working_directory);
     let mut resolved = Vec::with_capacity(secret_names.len());
     for name in secret_names {
-        let value =
-            bridge::request_secret(name, project, environment).map_err(|error| explain(&error))?;
+        // The working directory is what the command will run in, so it is the
+        // most useful "which project was this" hint we can give the app. It is
+        // self-reported: the server records it as a lead, never as proof.
+        let value = bridge::request_secret(
+            name,
+            project,
+            environment,
+            Some(&working_directory.to_string_lossy()),
+        )
+        .map_err(|error| explain(&error))?;
         resolved.push((name.clone(), value));
     }
 
@@ -329,6 +351,81 @@ where
     args.next().ok_or_else(|| format!("{option} 缺少参数。"))
 }
 
+/// 当前工作目录。自报给应用当线索用（回答「哪个项目读的」）。
+fn current_directory() -> Option<String> {
+    env::current_dir()
+        .ok()
+        .map(|path| path.to_string_lossy().into_owned())
+}
+
+/// `audit` 打印应用的读取记录：什么时候、哪个进程、读了哪个条目名。
+///
+/// 记录里只有条目名，**没有密钥值**。
+fn run_audit<I>(args: &mut I) -> Result<(), String>
+where
+    I: Iterator<Item = String>,
+{
+    let mut limit = 50usize;
+    let mut as_json = false;
+    while let Some(argument) = args.next() {
+        match argument.as_str() {
+            "--limit" => {
+                let value = next_value(args, "--limit")?;
+                limit = value
+                    .parse::<usize>()
+                    .map_err(|_| "--limit 需要一个数字。".to_owned())?;
+            }
+            "--json" => as_json = true,
+            _ => return Err(format!("未知参数: {argument}\n\n{}", usage())),
+        }
+    }
+
+    let events = bridge::request_audit().map_err(|error| {
+        // An older app does not know the `audit` operation at all.
+        if error.code == "invalid_request" {
+            return "这个应用版本还没有读取记录功能，请升级应用后再试。".to_owned();
+        }
+        explain(&error)
+    })?;
+    if as_json {
+        let text =
+            serde_json::to_string_pretty(&events).map_err(|_| "无法序列化读取记录。".to_owned())?;
+        println!("{text}");
+        return Ok(());
+    }
+
+    print!("{}", render_audit(&events, limit));
+    Ok(())
+}
+
+/// 把读取记录渲染成人读的文本。**只有条目名，没有值。**
+fn render_audit(events: &[local_api_vault_lib::audit::AuditEvent], limit: usize) -> String {
+    if events.is_empty() {
+        return "还没有读取记录。\n".to_owned();
+    }
+    let mut text = String::from("读取记录（新的在前）：\n");
+    for event in events.iter().take(limit) {
+        let process = match (&event.process, event.pid) {
+            (Some(name), Some(pid)) => format!("{name} (PID {pid})"),
+            (Some(name), None) => name.clone(),
+            (None, Some(pid)) => format!("PID {pid}"),
+            (None, None) => "未知进程".to_owned(),
+        };
+        text.push_str(&format!(
+            "{}  {}  {}  {}",
+            event.at_local, process, event.name, event.outcome
+        ));
+        if let Some(cwd) = &event.cwd {
+            text.push_str(&format!("  {cwd}"));
+        }
+        text.push('\n');
+    }
+    text.push('\n');
+    text.push_str("进程与 PID 由服务端核实；项目与目录是调用方自报，只能当线索。\n");
+    text.push_str("记录只在内存里，重启应用即清空；里面只有条目名，没有密钥值。\n");
+    text
+}
+
 fn is_environment_name(name: &str) -> bool {
     let mut characters = name.chars();
     match characters.next() {
@@ -336,4 +433,59 @@ fn is_environment_name(name: &str) -> bool {
         _ => return false,
     }
     characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use local_api_vault_lib::audit::AuditEvent;
+
+    fn event(name: &str, outcome: &str) -> AuditEvent {
+        AuditEvent {
+            at: 1_700_000_000_000,
+            at_local: "2026-11-12 10:30:15".to_owned(),
+            pid: Some(4242),
+            process: Some("local-api-vault-cli.exe".to_owned()),
+            name: name.to_owned(),
+            project: None,
+            environment: None,
+            cwd: Some("C:\\demo".to_owned()),
+            client: Some("lvault".to_owned()),
+            outcome: outcome.to_owned(),
+        }
+    }
+
+    #[test]
+    fn renders_the_process_the_name_and_the_outcome() {
+        let text = render_audit(&[event("NEWSFEED_API_KEY", "ok")], 50);
+        assert!(text.contains("2026-11-12 10:30:15"), "{text}");
+        assert!(text.contains("local-api-vault-cli.exe"), "{text}");
+        assert!(text.contains("PID 4242"), "{text}");
+        assert!(text.contains("NEWSFEED_API_KEY"), "{text}");
+        assert!(text.contains("ok"), "{text}");
+        assert!(text.contains("C:\\demo"), "{text}");
+    }
+
+    #[test]
+    fn says_so_when_there_is_nothing_yet() {
+        assert!(render_audit(&[], 50).contains("还没有读取记录"));
+    }
+
+    #[test]
+    fn honours_the_limit() {
+        let events = vec![
+            event("FIRST_NAME", "ok"),
+            event("SECOND_NAME", "ok"),
+            event("THIRD_NAME", "ok"),
+        ];
+        let text = render_audit(&events, 2);
+        assert!(text.contains("SECOND_NAME"), "{text}");
+        assert!(!text.contains("THIRD_NAME"), "{text}");
+    }
+
+    #[test]
+    fn never_prints_anything_but_names() {
+        let text = render_audit(&[event("API_KEY", "ok")], 50);
+        assert!(!text.contains("sk-"), "{text}");
+    }
 }

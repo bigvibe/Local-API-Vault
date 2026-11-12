@@ -2,6 +2,7 @@ use age::secrecy::SecretString;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
+use crate::audit::AuditLog;
 use crate::model::{EntrySummary, VaultDocument, VaultStatus};
 use crate::vault::VaultFile;
 use zeroize::Zeroize;
@@ -68,17 +69,25 @@ impl Zeroize for UnlockedVault {
 
 pub struct AppState {
     inner: Mutex<Option<UnlockedVault>>,
+    /// 读取记录。只在内存里，重启即失。
+    audit: AuditLog,
 }
 
 impl Default for AppState {
     fn default() -> Self {
         Self {
             inner: Mutex::new(None),
+            audit: AuditLog::new(),
         }
     }
 }
 
 impl AppState {
+    /// 读取记录缓冲。
+    pub fn audit(&self) -> &AuditLog {
+        &self.audit
+    }
+
     fn guard(&self) -> Result<MutexGuard<'_, Option<UnlockedVault>>, String> {
         self.inner
             .lock()

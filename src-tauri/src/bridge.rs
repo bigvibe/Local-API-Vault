@@ -1,3 +1,4 @@
+use crate::audit::AuditEvent;
 use crate::model::RunProfile;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -7,17 +8,28 @@ use std::sync::Arc;
 pub const PIPE_NAME: &str = "LocalApiVault-v1";
 pub const PROTOCOL_VERSION: u32 = 1;
 const MAX_REQUEST_BYTES: u64 = 64 * 1024;
+/// 一次 `audit` 请求最多带回多少条记录。
+const MAX_AUDIT_EVENTS: usize = 200;
+/// 客户端自报的程序标识。**自报，仅作线索**——真正可信的是 pid 与 process。
+const CLIENT_NAME: &str = "lvault";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ClientRequest {
     pub version: u32,
     #[serde(default)]
     pub operation: Option<String>,
+    #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub project: Option<String>,
     #[serde(default)]
     pub environment: Option<String>,
+    /// 调用方自报的工作目录。只作线索，服务端不验证。
+    #[serde(default)]
+    pub cwd: Option<String>,
+    /// 调用方自报的程序标识（例如 `lvault`）。只作线索，服务端不验证。
+    #[serde(default)]
+    pub client: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -43,6 +55,11 @@ pub struct ClientResponse {
     // otherwise fail to deserialise every single response.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub suggestions: Vec<String>,
+    // The access log, returned by the `audit` operation. Additive and optional:
+    // an older client ignores it, and a server that omits it deserialises as an
+    // empty list.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub events: Vec<AuditEvent>,
 }
 
 impl ClientResponse {
@@ -60,6 +77,7 @@ impl ClientResponse {
             entry_version: None,
             profile: None,
             suggestions,
+            events: Vec::new(),
         }
     }
 
@@ -73,6 +91,7 @@ impl ClientResponse {
             entry_version: Some(entry_version),
             profile: None,
             suggestions: Vec::new(),
+            events: Vec::new(),
         }
     }
 
@@ -86,30 +105,55 @@ impl ClientResponse {
             entry_version: None,
             profile: Some(profile),
             suggestions: Vec::new(),
+            events: Vec::new(),
+        }
+    }
+
+    fn events(events: Vec<AuditEvent>) -> Self {
+        Self {
+            version: PROTOCOL_VERSION,
+            ok: true,
+            code: "ok".to_owned(),
+            message: "ok".to_owned(),
+            value: None,
+            entry_version: None,
+            profile: None,
+            suggestions: Vec::new(),
+            events,
         }
     }
 }
 
-pub fn start(state: Arc<AppState>) -> Result<(), String> {
-    #[cfg(windows)]
-    {
-        let listener = create_listener()?;
-        std::thread::Builder::new()
-            .name("local-api-vault-bridge".to_owned())
-            .spawn(move || serve(listener, state))
-            .map_err(|error| error.to_string())?;
-        Ok(())
-    }
+/// 调用方身份。`pid` 与 `process` 来自**服务端**（管道句柄问内核要），
+/// 所以调用方改不了；只有请求里的项目/目录是它自己说的。
+#[derive(Debug, Clone, Default)]
+pub struct Caller {
+    pub pid: Option<u32>,
+    pub process: Option<String>,
+}
 
-    #[cfg(not(windows))]
-    {
-        let _ = state;
-        Ok(())
-    }
+pub fn start(state: Arc<AppState>) -> Result<(), String> {
+    start_with_pipe(state, PIPE_NAME)
 }
 
 #[cfg(windows)]
-fn create_listener() -> Result<interprocess::local_socket::Listener, String> {
+fn start_with_pipe(state: Arc<AppState>, pipe_name: &str) -> Result<(), String> {
+    let listener = create_listener(pipe_name)?;
+    std::thread::Builder::new()
+        .name("local-api-vault-bridge".to_owned())
+        .spawn(move || serve(listener, state))
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn start_with_pipe(state: Arc<AppState>, _pipe_name: &str) -> Result<(), String> {
+    let _ = state;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn create_listener(pipe_name: &str) -> Result<interprocess::local_socket::Listener, String> {
     use interprocess::local_socket::{prelude::*, GenericNamespaced, ListenerOptions};
     use interprocess::os::windows::local_socket::ListenerOptionsExt;
     use interprocess::os::windows::security_descriptor::SecurityDescriptor;
@@ -121,7 +165,7 @@ fn create_listener() -> Result<interprocess::local_socket::Listener, String> {
         U16CString::from_str("D:P(A;;GA;;;OW)(A;;GA;;;SY)").map_err(|error| error.to_string())?;
     let security =
         SecurityDescriptor::deserialize(sddl.as_ucstr()).map_err(|error| error.to_string())?;
-    let name = PIPE_NAME
+    let name = pipe_name
         .to_ns_name::<GenericNamespaced>()
         .map_err(|error| error.to_string())?;
     ListenerOptions::new()
@@ -161,6 +205,9 @@ fn handle_connection(
     mut stream: interprocess::local_socket::Stream,
     state: &AppState,
 ) -> std::io::Result<()> {
+    // Ask the kernel who is on the other end BEFORE reading anything. This is
+    // the one piece of the access log the caller cannot lie about.
+    let caller = caller_from(&stream);
     let line = read_request_line(&mut stream)?;
     if line.is_empty() {
         return Ok(());
@@ -174,10 +221,22 @@ fn handle_connection(
     }
 
     let response = match serde_json::from_str::<ClientRequest>(&line) {
-        Ok(request) => handle_request(state, request),
+        Ok(request) => handle_request(state, request, &caller),
         Err(_) => ClientResponse::error("invalid_request", "invalid request"),
     };
     write_response(&mut stream, &response)
+}
+
+/// Read the client process id straight off the pipe handle.
+#[cfg(windows)]
+fn caller_from(stream: &interprocess::local_socket::Stream) -> Caller {
+    use interprocess::local_socket::traits::StreamCommon;
+
+    let pid = stream.peer_creds().ok().and_then(|creds| creds.pid());
+    Caller {
+        pid,
+        process: pid.and_then(crate::audit::process_name),
+    }
 }
 
 #[cfg(windows)]
@@ -209,10 +268,27 @@ fn write_response(
     stream.flush()
 }
 
-fn handle_request(state: &AppState, request: ClientRequest) -> ClientResponse {
+fn handle_request(state: &AppState, request: ClientRequest, caller: &Caller) -> ClientResponse {
     if request.version != PROTOCOL_VERSION {
         return ClientResponse::error("invalid_request", "unsupported protocol version");
     }
+
+    let operation = request.operation.as_deref().unwrap_or("get");
+
+    // `audit` reads the app's own access log, not the vault. It is still gated
+    // on "unlocked": the log holds entry NAMES, and names are exactly what a
+    // locked vault must not reveal.
+    if operation == "audit" {
+        let status = match state.status() {
+            Ok(status) => status,
+            Err(_) => return ClientResponse::error("internal_error", "internal error"),
+        };
+        if status.locked {
+            return ClientResponse::error("vault_locked", "Vault is locked");
+        }
+        return ClientResponse::events(state.audit().events(MAX_AUDIT_EVENTS));
+    }
+
     let name = request.name.trim();
     if name.is_empty() || name.len() > 200 {
         return ClientResponse::error("invalid_request", "name is required");
@@ -223,14 +299,42 @@ fn handle_request(state: &AppState, request: ClientRequest) -> ClientResponse {
         Err(_) => return ClientResponse::error("internal_error", "internal error"),
     };
     if status.locked {
+        record_event(state, &request, name, caller, "vault_locked");
         return ClientResponse::error("vault_locked", "Vault is locked");
     }
 
-    match request.operation.as_deref().unwrap_or("get") {
+    let response = match operation {
         "get" => handle_secret_request(state, &request, name),
         "profile" => handle_profile_request(state, name),
-        _ => ClientResponse::error("invalid_request", "unsupported operation"),
-    }
+        _ => return ClientResponse::error("invalid_request", "unsupported operation"),
+    };
+    record_event(state, &request, name, caller, &response.code);
+    response
+}
+
+/// Write one line to the access log.
+///
+/// The outcome is the response code, so the log distinguishes "read it" from
+/// "no such entry" from "entry is disabled" from "vault was locked".
+fn record_event(
+    state: &AppState,
+    request: &ClientRequest,
+    name: &str,
+    caller: &Caller,
+    outcome: &str,
+) {
+    state.audit().record(AuditEvent {
+        at: AuditEvent::now(),
+        at_local: crate::audit::local_time_string(),
+        pid: caller.pid,
+        process: caller.process.clone(),
+        name: name.to_owned(),
+        project: request.project.clone(),
+        environment: request.environment.clone(),
+        cwd: request.cwd.clone(),
+        client: request.client.clone(),
+        outcome: outcome.to_owned(),
+    });
 }
 
 /// Case-insensitive substring test used for name suggestions.
@@ -374,6 +478,7 @@ pub fn request_secret(
     name: &str,
     project: Option<&str>,
     environment: Option<&str>,
+    working_directory: Option<&str>,
 ) -> Result<String, ClientError> {
     let name = name.trim();
     if name.is_empty() {
@@ -389,6 +494,8 @@ pub fn request_secret(
         name: name.to_owned(),
         project: project.map(str::to_owned),
         environment: environment.map(str::to_owned),
+        cwd: working_directory.map(str::to_owned),
+        client: Some(CLIENT_NAME.to_owned()),
     })
     .map_err(|message| ClientError {
         code: "bridge_unavailable".to_owned(),
@@ -411,7 +518,10 @@ pub fn request_secret(
 }
 
 #[cfg(windows)]
-pub fn request_profile(name: &str) -> Result<RunProfile, ClientError> {
+pub fn request_profile(
+    name: &str,
+    working_directory: Option<&str>,
+) -> Result<RunProfile, ClientError> {
     let name = name.trim();
     if name.is_empty() {
         return Err(ClientError {
@@ -426,6 +536,8 @@ pub fn request_profile(name: &str) -> Result<RunProfile, ClientError> {
         name: name.to_owned(),
         project: None,
         environment: None,
+        cwd: working_directory.map(str::to_owned),
+        client: Some(CLIENT_NAME.to_owned()),
     })
     .map_err(|message| ClientError {
         code: "bridge_unavailable".to_owned(),
@@ -447,14 +559,47 @@ pub fn request_profile(name: &str) -> Result<RunProfile, ClientError> {
     }
 }
 
+/// The access log, newest first.
+#[cfg(windows)]
+pub fn request_audit() -> Result<Vec<AuditEvent>, ClientError> {
+    let response = send_request(ClientRequest {
+        version: PROTOCOL_VERSION,
+        operation: Some("audit".to_owned()),
+        name: String::new(),
+        project: None,
+        environment: None,
+        cwd: None,
+        client: Some(CLIENT_NAME.to_owned()),
+    })
+    .map_err(|message| ClientError {
+        code: "bridge_unavailable".to_owned(),
+        message,
+        suggestions: Vec::new(),
+    })?;
+    if response.ok {
+        Ok(response.events)
+    } else {
+        Err(ClientError {
+            code: response.code,
+            message: response.message,
+            suggestions: response.suggestions,
+        })
+    }
+}
+
 #[cfg(windows)]
 fn send_request(request: ClientRequest) -> Result<ClientResponse, String> {
+    send_request_to(PIPE_NAME, request)
+}
+
+#[cfg(windows)]
+fn send_request_to(pipe_name: &str, request: ClientRequest) -> Result<ClientResponse, String> {
     use interprocess::local_socket::{prelude::*, GenericNamespaced, Stream};
 
-    let pipe_name = PIPE_NAME
+    let name = pipe_name
         .to_ns_name::<GenericNamespaced>()
         .map_err(|error| error.to_string())?;
-    let mut stream = Stream::connect(pipe_name).map_err(|error| error.to_string())?;
+    let mut stream = Stream::connect(name).map_err(|error| error.to_string())?;
     serde_json::to_writer(&mut stream, &request).map_err(|error| error.to_string())?;
     stream.write_all(b"\n").map_err(|error| error.to_string())?;
     stream.flush().map_err(|error| error.to_string())?;
@@ -472,6 +617,7 @@ pub fn request_secret(
     _name: &str,
     _project: Option<&str>,
     _environment: Option<&str>,
+    _working_directory: Option<&str>,
 ) -> Result<String, ClientError> {
     Err(ClientError {
         code: "bridge_unavailable".to_owned(),
@@ -481,7 +627,19 @@ pub fn request_secret(
 }
 
 #[cfg(not(windows))]
-pub fn request_profile(_name: &str) -> Result<RunProfile, ClientError> {
+pub fn request_profile(
+    _name: &str,
+    _working_directory: Option<&str>,
+) -> Result<RunProfile, ClientError> {
+    Err(ClientError {
+        code: "bridge_unavailable".to_owned(),
+        message: "Named Pipe bridge is currently available on Windows only.".to_owned(),
+        suggestions: Vec::new(),
+    })
+}
+
+#[cfg(not(windows))]
+pub fn request_audit() -> Result<Vec<AuditEvent>, ClientError> {
     Err(ClientError {
         code: "bridge_unavailable".to_owned(),
         message: "Named Pipe bridge is currently available on Windows only.".to_owned(),
@@ -504,6 +662,15 @@ mod tests {
             name: name.to_owned(),
             project: Some("demo".to_owned()),
             environment: Some("development".to_owned()),
+            cwd: Some("C:\\demo".to_owned()),
+            client: Some("lvault".to_owned()),
+        }
+    }
+
+    fn caller() -> Caller {
+        Caller {
+            pid: Some(4242),
+            process: Some("demo.exe".to_owned()),
         }
     }
 
@@ -543,7 +710,7 @@ mod tests {
 
         let state = AppState::default();
         assert_eq!(
-            handle_request(&state, request("API_KEY")).code,
+            handle_request(&state, request("API_KEY"), &caller()).code,
             "vault_locked"
         );
 
@@ -556,7 +723,10 @@ mod tests {
                 disabled,
             ))
             .unwrap();
-        assert_eq!(handle_request(&state, request("API_KEY")).code, "disabled");
+        assert_eq!(
+            handle_request(&state, request("API_KEY"), &caller()).code,
+            "disabled"
+        );
 
         let mut enabled = document;
         enabled.entries[0].enabled = true;
@@ -567,15 +737,155 @@ mod tests {
                 enabled,
             ))
             .unwrap();
-        let response = handle_request(&state, request("API_KEY"));
+        let response = handle_request(&state, request("API_KEY"), &caller());
         assert!(response.ok);
         assert_eq!(response.value.as_deref(), Some("value"));
 
         let mut profile_request = request("demo");
         profile_request.operation = Some("profile".to_owned());
-        let profile_response = handle_request(&state, profile_request);
+        let profile_response = handle_request(&state, profile_request, &caller());
         assert!(profile_response.ok);
         assert_eq!(profile_response.profile.unwrap().command, "npm run dev");
+    }
+
+    fn unlocked_state() -> AppState {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("vault.age");
+        let passphrase = "audit test passphrase with entropy";
+        VaultFile::create(&path, passphrase).unwrap();
+        let mut document = VaultFile::load(&path, passphrase).unwrap();
+        document.entries.push(SecretEntry {
+            id: "id".to_owned(),
+            name: "API_KEY".to_owned(),
+            kind: "api-key".to_owned(),
+            project: "demo".to_owned(),
+            environment: "development".to_owned(),
+            username: String::new(),
+            secret: "super-secret-value".to_owned(),
+            url: String::new(),
+            notes: String::new(),
+            tags: vec![],
+            enabled: true,
+            created_at: 1,
+            updated_at: 1,
+        });
+        let state = AppState::default();
+        state
+            .replace(UnlockedVault::from_parts(
+                path,
+                passphrase.to_owned(),
+                document,
+            ))
+            .unwrap();
+        state
+    }
+
+    fn audit_request() -> ClientRequest {
+        ClientRequest {
+            version: PROTOCOL_VERSION,
+            operation: Some("audit".to_owned()),
+            name: String::new(),
+            project: None,
+            environment: None,
+            cwd: None,
+            client: Some("lvault".to_owned()),
+        }
+    }
+
+    #[test]
+    fn records_who_read_what() {
+        let state = unlocked_state();
+        let response = handle_request(&state, request("API_KEY"), &caller());
+        assert!(response.ok);
+
+        let events = state.audit().events(0);
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+        assert_eq!(event.name, "API_KEY");
+        assert_eq!(event.outcome, "ok");
+        // Server-side facts: these cannot be forged by the caller.
+        assert_eq!(event.pid, Some(4242));
+        assert_eq!(event.process.as_deref(), Some("demo.exe"));
+        // Caller-reported facts: leads, not proof.
+        assert_eq!(event.cwd.as_deref(), Some("C:\\demo"));
+        assert_eq!(event.client.as_deref(), Some("lvault"));
+        // Never a value.
+        assert!(!format!("{event:?}").contains("super-secret-value"));
+    }
+
+    #[test]
+    fn records_misses_and_disabled_entries_too() {
+        let state = unlocked_state();
+        handle_request(&state, request("NOPE"), &caller());
+        let events = state.audit().events(0);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].outcome, "not_found");
+        assert_eq!(events[0].name, "NOPE");
+    }
+
+    #[test]
+    fn records_attempts_while_locked() {
+        let state = AppState::default();
+        let response = handle_request(&state, request("API_KEY"), &caller());
+        assert_eq!(response.code, "vault_locked");
+        let events = state.audit().events(0);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].outcome, "vault_locked");
+    }
+
+    #[test]
+    fn the_audit_operation_returns_the_log() {
+        let state = unlocked_state();
+        handle_request(&state, request("API_KEY"), &caller());
+        let response = handle_request(&state, audit_request(), &caller());
+        assert!(response.ok);
+        assert_eq!(response.events.len(), 1);
+        assert_eq!(response.events[0].name, "API_KEY");
+    }
+
+    #[test]
+    fn the_audit_operation_is_locked_out_too() {
+        // The log holds entry NAMES, and a locked vault must not reveal names.
+        let state = AppState::default();
+        let response = handle_request(&state, audit_request(), &caller());
+        assert_eq!(response.code, "vault_locked");
+        assert!(response.events.is_empty());
+    }
+
+    #[test]
+    fn reading_the_log_does_not_add_to_the_log() {
+        let state = unlocked_state();
+        handle_request(&state, request("API_KEY"), &caller());
+        handle_request(&state, audit_request(), &caller());
+        assert_eq!(state.audit().events(0).len(), 1);
+    }
+
+    /// End to end over a real named pipe: the server must learn the calling
+    /// process from the pipe handle itself, not from anything the caller said.
+    #[cfg(windows)]
+    #[test]
+    fn records_the_calling_process_end_to_end() {
+        // A private pipe name, so the test never collides with a running app.
+        let pipe_name = format!("LocalApiVault-test-{}", std::process::id());
+        let state = std::sync::Arc::new(unlocked_state());
+        start_with_pipe(std::sync::Arc::clone(&state), &pipe_name).unwrap();
+
+        let response = send_request_to(&pipe_name, request("API_KEY")).unwrap();
+        assert!(response.ok);
+        assert_eq!(response.value.as_deref(), Some("super-secret-value"));
+
+        let events = state.audit().events(0);
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0].pid,
+            Some(std::process::id()),
+            "服务端应当从管道句柄问出客户端 PID"
+        );
+        let process = events[0]
+            .process
+            .clone()
+            .expect("应当能由 PID 反查出进程名");
+        assert!(process.to_lowercase().ends_with(".exe"), "{process}");
     }
 
     fn suggest_names_for(candidates: &[&str], wanted: &str) -> Vec<String> {
@@ -635,7 +945,7 @@ mod tests {
 
         // Locked: vault_locked, and NO name suggestions — a locked vault reveals
         // nothing, not even which entries exist.
-        let locked = handle_request(&state, request("NEWSFEED"));
+        let locked = handle_request(&state, request("NEWSFEED"), &caller());
         assert_eq!(locked.code, "vault_locked");
         assert!(locked.suggestions.is_empty());
 
@@ -648,7 +958,7 @@ mod tests {
             .unwrap();
 
         // Unlocked miss: suggestions present, names only — never a value.
-        let response = handle_request(&state, request("NEWSFEED"));
+        let response = handle_request(&state, request("NEWSFEED"), &caller());
         assert_eq!(response.code, "not_found");
         assert!(response
             .suggestions

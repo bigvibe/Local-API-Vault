@@ -61,9 +61,9 @@ contain secret values, and they only appear while the vault is unlocked.
 (`%LOCALAPPDATA%\Local API Vault\lvault.cmd`). Use the full path if that folder
 is not on `PATH`.
 
-`lvault` deliberately exposes only `get`, `run` and `verify`. It is a thin wrapper over
-`local-api-vault-cli.exe`, whose `get`/`list` verbs prompt for the master
-passphrase — do not use those.
+`lvault` deliberately exposes only `get`, `run`, `verify` and `audit`. It is a thin
+wrapper over `local-api-vault-cli.exe`, whose `get`/`list` verbs prompt for the
+master passphrase — do not use those.
 
 `lvault verify` is a read-only health check of the vault **files**: it never asks
 for a passphrase, never prints an entry name or a secret, and never writes
@@ -77,6 +77,21 @@ lvault verify
 Exit code `0` means no problem was found, `1` means at least one check failed.
 Do not pass `--identity` (the recovery identity file) unless the user asks for
 that check explicitly — you must not read the recovery identity yourself.
+
+`lvault audit` prints the app's access log: when, which process, which entry
+**NAME**. It never prints a value. Use it when the user asks who read a key:
+
+```powershell
+lvault audit
+lvault audit --json
+```
+
+Two things to keep straight when you report what it says:
+
+- The process name and PID are **server-verified**; the project and working
+  directory are **self-reported by the caller** — leads, not proof.
+- It cannot tell you *who* did it. The pipe is reachable by any process running
+  as the user, so the log says *which process*, never *which person*.
 
 ## API contracts are not secrets
 

@@ -87,6 +87,7 @@ PowerShell 窗口。如果提示找不到命令，看[CLI 一节](#cli)。
     导入后可在条目列表里逐个删除你不需要保留的项
 - 原生文件选择器和加密备份导出
 - `lvault verify` 只读校验 Vault 完整性（不索要主密码、不打印密钥值）
+- `lvault audit` 读取记录：时间、服务端核实的进程与 PID、条目名（只放内存，不落盘）
 - 修改主密码时重新加密 Vault
 - 最小化到系统托盘，托盘菜单可重新显示或退出
 - 可选开机自启动，登录后静默进入托盘且保持锁定
@@ -184,15 +185,52 @@ lvault run -- npm run dev
 - 同时给了 `--secret` 时以命令行为准，`.lvault.toml` 不参与
 - 上限：16 KB、最多 64 个名字、只允许顶层 `vars`
 
-`lvault` 是安装目录下的安全包装命令，只暴露三个动词：
+`lvault` 是安装目录下的安全包装命令，只暴露四个动词：
 
 ```powershell
 lvault get OPENAI_API_KEY --project web-app --environment development
 lvault run web-dev
 lvault verify
+lvault audit
 ```
 
 `lvault get` 读取时不会索要主密码，它只会通过已解锁应用的 Named Pipe 取值，因此适合脚本和 AI 助手调用。具体约定见 [`AGENTS.md`](AGENTS.md)。
+
+### `lvault audit`：谁读过我的密钥
+
+想知道「这个密钥都被谁读过了」，跑一次：
+
+```powershell
+lvault audit
+```
+
+```text
+读取记录（新的在前）：
+2026-11-12 10:30:15  local-api-vault-cli.exe (PID 12345)  NEWSFEED_API_KEY  ok  D:\projects\web
+2026-11-12 10:31:02  node.exe (PID 20984)  NEWSFEED_API_KEY  ok  D:\projects\web
+
+进程与 PID 由服务端核实；项目与目录是调用方自报，只能当线索。
+记录只在内存里，重启应用即清空；里面只有条目名，没有密钥值。
+```
+
+每条记录包含：**服务端时间**、**调用方进程与 PID**、被读的**条目名**、结果，以及调用方自报的工作目录。
+
+哪些可信，哪些不可信，务必分清：
+
+| 字段 | 可信度 |
+|---|---|
+| 时间、进程名、PID | **服务端核实**，调用方改不了（PID 来自 `GetNamedPipeClientProcessId`） |
+| 条目名 | 服务端记录，但它本来就是调用方请求的名字 |
+| 项目、工作目录、客户端 | **调用方自报**，只能当线索 |
+
+边界要说在前面：
+
+- 管道 ACL 只允许当前用户和 SYSTEM，所以「调用方」永远是这台机器上的某个进程。
+  记录能回答「**哪个进程**读的」，回答不了「是不是你本人」，也拦不住它。这是**事后追查**工具，不是防护工具。
+- 只记**条目名**，从不记密钥值。
+- 只放**内存**，不落盘：重启应用即清空，也不会有明文元数据留在磁盘上。
+- 锁定时读不到记录：条目名和未锁定时能看到的名称是同一类信息，锁着就不给。
+- 读记录本身不会被记进记录。
 
 ### `lvault verify`：只读体检
 
