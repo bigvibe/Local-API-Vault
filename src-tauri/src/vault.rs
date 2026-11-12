@@ -24,6 +24,54 @@ pub enum VaultError {
     InvalidData,
     #[error("Vault 版本不受支持")]
     UnsupportedVersion,
+    #[error("当前 Vault 没有恢复身份，请先启用恢复密钥")]
+    NoRecoveryIdentity,
+}
+
+/// What a rotation produced.
+pub struct RotationOutcome {
+    pub identity: age::x25519::Identity,
+    pub vault_backup: PathBuf,
+    pub sidecar_backup: PathBuf,
+}
+
+impl std::fmt::Debug for RotationOutcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The identity is a secret: never let it reach a log line.
+        f.debug_struct("RotationOutcome")
+            .field("identity", &"<redacted>")
+            .field("vault_backup", &self.vault_backup)
+            .field("sidecar_backup", &self.sidecar_backup)
+            .finish()
+    }
+}
+
+/// Milliseconds since the epoch, used to stamp backup file names.
+fn timestamp() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default()
+}
+
+/// A backup file name that keeps the same convention as the original pair.
+///
+/// `vault.age` becomes `vault.before-rotate-<stamp>.age` plus
+/// `vault.before-rotate-<stamp>.identity.age`, so the backup is itself a
+/// working pair: `VaultFile::load` finds the sidecar next to it, and the
+/// user can open the backup exactly like the real thing.
+fn stamped_pair(path: &Path, tag: &str, stamp: u128) -> (PathBuf, PathBuf) {
+    let stem = path
+        .file_stem()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "vault".to_owned());
+    let extension = path
+        .extension()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "age".to_owned());
+    let vault_backup = path.with_file_name(format!("{stem}.{tag}-{stamp}.{extension}"));
+    let sidecar_backup = vault_backup.with_extension("identity.age");
+    (vault_backup, sidecar_backup)
 }
 
 pub struct VaultFile;
@@ -212,6 +260,77 @@ impl VaultFile {
             copy_file_atomic(&recovery_source, &recovery_destination)?;
         }
         Ok(())
+    }
+
+    /// Read the X25519 identity that is wrapped inside the sidecar.
+    pub fn load_identity(
+        path: &Path,
+        passphrase: &str,
+    ) -> Result<age::x25519::Identity, VaultError> {
+        let sidecar = read_bounded(&Self::identity_path(path))?;
+        crypto::decrypt_identity_sidecar(&sidecar, passphrase)
+            .map_err(|_| VaultError::InvalidPassphrase)
+    }
+
+    /// Issue a brand new recovery identity and re-encrypt the vault for it.
+    ///
+    /// The old recovery identity file stops working on the new vault — that is
+    /// the whole point of rotating. The previous vault file is kept next to the
+    /// new one (`<name>.before-rotate-<stamp>`), still encrypted for the OLD
+    /// identity, so nothing is lost if the user still needs the old data.
+    ///
+    /// Safety: the new pair is written to temporary files and decrypted again
+    /// BEFORE anything on disk is replaced. If any step fails, the original
+    /// vault is left exactly as it was.
+    pub fn rotate_identity(
+        path: &Path,
+        passphrase: &str,
+        document: &VaultDocument,
+    ) -> Result<RotationOutcome, VaultError> {
+        if !Self::has_identity_sidecar(path) {
+            return Err(VaultError::NoRecoveryIdentity);
+        }
+        // Validate the passphrase BEFORE anything is written: a wrong passphrase
+        // must fail without touching a single byte on disk.
+        Self::load_identity(path, passphrase)?;
+
+        let new_identity = age::x25519::Identity::generate();
+        let stamp = timestamp();
+        let (vault_backup, sidecar_backup) = stamped_pair(path, "before-rotate", stamp);
+
+        // Encrypt both files first, so a failure here cannot touch the disk.
+        let mut plaintext = serde_json::to_vec(document).map_err(|_| VaultError::InvalidData)?;
+        let encrypted = crypto::encrypt_to_identity(&plaintext, &new_identity);
+        plaintext.zeroize();
+        let encrypted = encrypted.map_err(|_| VaultError::InvalidData)?;
+        let sidecar = crypto::encrypt_identity_sidecar(&new_identity, passphrase)
+            .map_err(|_| VaultError::InvalidData)?;
+
+        // Prove the new bytes open before they replace anything.
+        let verified = crypto::decrypt_with_identity(&encrypted, &new_identity)
+            .map_err(|_| VaultError::InvalidData)?;
+        let mut verified = verified;
+        serde_json::from_slice::<VaultDocument>(&verified).map_err(|_| VaultError::InvalidData)?;
+        verified.zeroize();
+
+        // Keep the old pair, then install the new one.
+        copy_file_atomic(path, &vault_backup)?;
+        let sidecar_path = Self::identity_path(path);
+        if sidecar_path.exists() {
+            copy_file_atomic(&sidecar_path, &sidecar_backup)?;
+        }
+        write_atomic(path, &encrypted)?;
+        if let Err(error) = write_atomic(&sidecar_path, &sidecar) {
+            // Put the old vault back so the user is never left without one.
+            let _ = fs::copy(&vault_backup, path);
+            return Err(error);
+        }
+
+        Ok(RotationOutcome {
+            identity: new_identity,
+            vault_backup,
+            sidecar_backup,
+        })
     }
 
     pub fn parse_recovery_identity(contents: &str) -> Result<age::x25519::Identity, VaultError> {
@@ -551,6 +670,97 @@ mod tests {
         assert!(backup.exists());
         assert!(VaultFile::load(&path, new_passphrase).is_ok());
         assert!(VaultFile::load(&backup, old_passphrase).is_ok());
+    }
+
+    /// The acceptance criterion for rotation: the OLD recovery identity file
+    /// must stop working on the vault. Anything less is not a rotation.
+    #[test]
+    fn rotation_revokes_the_old_recovery_identity() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("vault.age");
+        let passphrase = "rotation passphrase with enough entropy";
+        let old_identity = age::x25519::Identity::generate();
+        VaultFile::create_with_recovery(&path, passphrase, &old_identity).unwrap();
+
+        let document = VaultFile::load_with_identity(&path, &old_identity).unwrap();
+        let outcome = VaultFile::rotate_identity(&path, passphrase, &document).unwrap();
+        let new_identity = outcome.identity.clone();
+
+        // The new identity opens it; the old one does not.
+        assert!(VaultFile::load_with_identity(&path, &new_identity).is_ok());
+        assert!(
+            VaultFile::load_with_identity(&path, &old_identity).is_err(),
+            "旧恢复身份必须打不开轮换后的 Vault"
+        );
+
+        // The master password still works, and so does the old backup.
+        assert!(VaultFile::load(&path, passphrase).is_ok());
+        assert!(outcome.vault_backup.exists());
+        assert!(VaultFile::load_with_identity(&outcome.vault_backup, &old_identity).is_ok());
+
+        // The old sidecar is kept next to it, so the old pair still opens.
+        assert!(outcome.sidecar_backup.exists());
+        assert!(VaultFile::load(&outcome.vault_backup, passphrase).is_ok());
+    }
+
+    #[test]
+    fn rotation_keeps_the_entries() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("vault.age");
+        let passphrase = "rotation passphrase with enough entropy";
+        let identity = age::x25519::Identity::generate();
+        VaultFile::create_with_recovery(&path, passphrase, &identity).unwrap();
+        let mut document = VaultFile::load_with_identity(&path, &identity).unwrap();
+        document.entries.push(crate::model::SecretEntry {
+            id: "entry-id".into(),
+            name: "API_KEY".into(),
+            kind: "api-key".into(),
+            project: "app".into(),
+            environment: "development".into(),
+            username: String::new(),
+            secret: "value".into(),
+            url: String::new(),
+            notes: String::new(),
+            tags: vec![],
+            enabled: true,
+            created_at: 1,
+            updated_at: 1,
+        });
+        VaultFile::save(&path, passphrase, &document).unwrap();
+
+        let document = VaultFile::load_with_identity(&path, &identity).unwrap();
+        let outcome = VaultFile::rotate_identity(&path, passphrase, &document).unwrap();
+        let rotated = VaultFile::load_with_identity(&path, &outcome.identity).unwrap();
+        assert_eq!(rotated.entries.len(), 1);
+        assert_eq!(rotated.entries[0].secret, "value");
+    }
+
+    #[test]
+    fn rotation_needs_a_recovery_identity_to_begin_with() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("vault.age");
+        let passphrase = "rotation passphrase with enough entropy";
+        VaultFile::create(&path, passphrase).unwrap();
+        let document = VaultFile::load(&path, passphrase).unwrap();
+        let error = VaultFile::rotate_identity(&path, passphrase, &document).unwrap_err();
+        assert!(matches!(error, VaultError::NoRecoveryIdentity));
+    }
+
+    #[test]
+    fn a_failed_rotation_leaves_the_vault_untouched() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("vault.age");
+        let passphrase = "rotation passphrase with enough entropy";
+        let identity = age::x25519::Identity::generate();
+        VaultFile::create_with_recovery(&path, passphrase, &identity).unwrap();
+        let before = std::fs::read(&path).unwrap();
+
+        // A wrong passphrase fails before anything is written.
+        let document = VaultFile::load_with_identity(&path, &identity).unwrap();
+        let error = VaultFile::rotate_identity(&path, "not the passphrase", &document).unwrap_err();
+        assert!(matches!(error, VaultError::InvalidPassphrase));
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(VaultFile::load_with_identity(&path, &identity).is_ok());
     }
 
     #[test]

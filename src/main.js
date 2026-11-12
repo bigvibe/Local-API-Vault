@@ -15,6 +15,8 @@ const state = {
   selectionToken: 0,
   pendingRecoveryKey: null,
   recoveryKeySaved: false,
+  pendingRecoveryKeyIsReplacement: false,
+  recoveryEnabled: false,
   vaultPath: "",
 };
 
@@ -99,7 +101,13 @@ function setVaultStatus(status) {
     const locationElement = $("#vault-location");
     locationElement.textContent = location;
     locationElement.title = location;
-    $("#enable-recovery").hidden = Boolean(status.recoveryEnabled);
+    // One button, two jobs: set up the first recovery identity, or replace the
+    // one that is already out there.
+    state.recoveryEnabled = Boolean(status.recoveryEnabled);
+    $("#enable-recovery").hidden = false;
+    $("#enable-recovery").textContent = state.recoveryEnabled
+      ? "更换恢复密钥"
+      : "设置恢复密钥";
   }
 }
 
@@ -797,7 +805,9 @@ async function saveProfile(event) {
 function requestCloseRecoverySetup() {
   if (!state.recoveryKeySaved && state.pendingRecoveryKey) {
     const discard = window.confirm(
-      "恢复身份文件还没有保存。关闭后将无法使用这把恢复密钥，确定关闭吗？",
+      state.pendingRecoveryKeyIsReplacement
+        ? "新的恢复身份文件还没有保存。旧的那把已经失效了，保存之前这个 Vault 就没有恢复身份可用——确定关闭吗？"
+        : "恢复身份文件还没有保存。关闭后将无法使用这把恢复密钥，确定关闭吗？",
     );
     if (!discard) return;
   }
@@ -810,13 +820,25 @@ function closeRecoverySetup() {
   recoverySetupMessage.textContent = "";
   state.pendingRecoveryKey = null;
   state.recoveryKeySaved = false;
+  state.pendingRecoveryKeyIsReplacement = false;
+  $("#recovery-setup-title").textContent = "保存恢复密钥";
+  $("#recovery-setup-description").textContent =
+    "这是一把独立的恢复密钥。请保存到 Vault 之外的安全位置；丢失它就无法恢复原数据。";
+  $("#finish-recovery-setup").textContent = "稍后设置";
 }
 
-function openRecoverySetup(recoveryKey) {
+function openRecoverySetup(recoveryKey, options = {}) {
   state.pendingRecoveryKey = recoveryKey;
   state.recoveryKeySaved = false;
+  state.pendingRecoveryKeyIsReplacement = Boolean(options.replacement);
   recoveryKeyInput.value = recoveryKey;
   recoverySetupMessage.textContent = "";
+  if (options.replacement) {
+    $("#recovery-setup-title").textContent = "保存新的恢复密钥";
+    $("#recovery-setup-description").textContent =
+      "旧的那把恢复密钥已经失效了——它再也打不开这个 Vault。把新的这把保存好，旧的可以销毁。";
+    $("#finish-recovery-setup").textContent = "稍后保存";
+  }
   recoverySetupModal.hidden = false;
   window.setTimeout(() => $("#save-recovery-key").focus(), 0);
 }
@@ -943,6 +965,15 @@ async function recoverVault(event) {
 
 async function enableRecovery() {
   try {
+    // Same button, two meanings: issue the first recovery identity, or replace
+    // the one that is already out there.
+    if (state.recoveryEnabled) {
+      const result = await invoke("rotate_recovery_identity");
+      await loadEntries();
+      openRecoverySetup(result.recoveryKey, { replacement: true });
+      showToast("恢复密钥已更换，旧的那把已失效。", "success");
+      return;
+    }
     const recoveryKey = await invoke("enable_recovery");
     await loadEntries();
     openRecoverySetup(recoveryKey);

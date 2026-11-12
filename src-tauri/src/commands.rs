@@ -1,7 +1,7 @@
 use crate::audit::AuditEvent;
 use crate::model::{
     now_millis, CreateVaultResult, EntryInput, EntrySummary, ImportResult, RebuildResult,
-    RevealedSecret, RunProfile, RunProfileInput, SecretEntry, VaultStatus,
+    RevealedSecret, RotationResult, RunProfile, RunProfileInput, SecretEntry, VaultStatus,
 };
 use crate::state::{AppState, UnlockedVault};
 use crate::vault::{default_vault_path as default_path, VaultError, VaultFile};
@@ -489,6 +489,45 @@ pub fn save_recovery_identity(path: String, mut identity: String) -> Result<(), 
     result
 }
 
+/// Issue a brand new recovery identity. The old recovery file stops working on
+/// this vault from here on — that is the point of rotating.
+#[tauri::command]
+pub fn rotate_recovery_identity(state: State<'_, Arc<AppState>>) -> Result<RotationResult, String> {
+    let (path, passphrase, document) = state.with_mut(|vault| {
+        Ok((
+            vault.path.clone(),
+            vault.passphrase.expose_secret().to_owned(),
+            vault.document.clone(),
+        ))
+    })?;
+    let outcome =
+        VaultFile::rotate_identity(&path, &passphrase, &document).map_err(|error| match error {
+            VaultError::NoRecoveryIdentity => {
+                "当前 Vault 没有恢复身份，请先在侧栏启用恢复密钥。".to_owned()
+            }
+            VaultError::InvalidPassphrase => "当前主密码不正确。".to_owned(),
+            VaultError::NotFound => "找不到 Vault 文件。".to_owned(),
+            VaultError::InvalidData => "Vault 文件格式无效或已损坏。".to_owned(),
+            VaultError::UnsupportedVersion => "Vault 版本不受支持，请升级应用。".to_owned(),
+            VaultError::AlreadyExists => "Vault 文件状态异常。".to_owned(),
+            VaultError::Io(_) => "读取或写入 Vault 失败。".to_owned(),
+        })?;
+    let secret = outcome.identity.to_string();
+    let recovery_key = secret.expose_secret().to_owned();
+    let recovery_public_key = outcome.identity.to_public().to_string();
+    // The vault file on disk now holds the same entries under a new identity.
+    state.with_mut(|vault| {
+        vault.document = document;
+        Ok(())
+    })?;
+    Ok(RotationResult {
+        recovery_key,
+        recovery_public_key,
+        vault_backup: outcome.vault_backup.to_string_lossy().into_owned(),
+        sidecar_backup: outcome.sidecar_backup.to_string_lossy().into_owned(),
+    })
+}
+
 #[tauri::command]
 pub fn recover_vault(
     state: State<'_, Arc<AppState>>,
@@ -527,6 +566,9 @@ pub fn recover_vault(
             VaultError::InvalidData => "Vault 文件格式无效或已损坏。".to_owned(),
             VaultError::UnsupportedVersion => "Vault 版本不受支持，请升级应用。".to_owned(),
             VaultError::AlreadyExists => "Vault 文件状态异常。".to_owned(),
+            VaultError::NoRecoveryIdentity => {
+                "当前 Vault 没有恢复身份，请先在侧栏启用恢复密钥。".to_owned()
+            }
             VaultError::Io(_) => "读取或写入 Vault 失败。".to_owned(),
         }
     });

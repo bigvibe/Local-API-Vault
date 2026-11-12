@@ -221,6 +221,16 @@ pub struct ImportResult {
     pub skipped_count: usize,
 }
 
+/// Result of issuing a new recovery identity.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RotationResult {
+    pub recovery_key: String,
+    pub recovery_public_key: String,
+    pub vault_backup: String,
+    pub sidecar_backup: String,
+}
+
 pub fn now_millis() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

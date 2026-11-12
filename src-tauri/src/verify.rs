@@ -238,6 +238,7 @@ pub fn verify(vault_path: &Path, identity_path: Option<&Path>) -> VerifyReport {
                                 "恢复身份与这个 Vault 不匹配，或文件已损坏".to_owned()
                             }
                             VaultError::AlreadyExists => "Vault 文件状态异常".to_owned(),
+                            VaultError::NoRecoveryIdentity => "当前 Vault 没有恢复身份".to_owned(),
                             VaultError::Io(_) => "读取失败".to_owned(),
                         }),
                     ));
