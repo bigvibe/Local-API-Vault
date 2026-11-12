@@ -153,7 +153,9 @@ $env:OPENAI_API_KEY = (lvault get OPENAI_API_KEY)
 lvault run web-dev
 ```
 
-`lvault` 与应用安装在同一目录，只暴露 `get` 和 `run`。完整约定见
+`lvault` 与应用安装在同一目录，只暴露 `get`、`run`、`verify` 与 `audit`。
+其中 `verify` 直接读 Vault 文件、不经过 Pipe；`audit` 走 Pipe 读应用自己的记录缓冲。
+完整约定见
 [`AGENTS.md`](../AGENTS.md)。
 
 ### 方式二：直接使用 Pipe 协议

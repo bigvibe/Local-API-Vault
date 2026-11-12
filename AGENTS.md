@@ -142,7 +142,10 @@ restores a value under `HKCU\...\Run`. That is expected.
 | `src-tauri/src/state.rs` | in-memory unlocked session |
 | `src-tauri/src/commands.rs` | Tauri commands (the frontend API) |
 | `src-tauri/src/autostart.rs` | optional per-user start-at-login toggle |
-| `src-tauri/src/bin/local-api-vault-cli.rs` | CLI (`list`, `get`, `pipe-get`, `run`, `verify`) |
+| `src-tauri/src/audit.rs` | in-memory access log: when, which process, which entry **name** |
+| `src-tauri/src/verify.rs` | read-only vault health check behind `lvault verify` |
+| `src-tauri/src/project_config.rs` | `.lvault.toml` parsing (names only, never values) |
+| `src-tauri/src/bin/local-api-vault-cli.rs` | CLI (`list`, `get`, `pipe-get`, `run`, `verify`, `audit`) |
 | `src/` | frontend, vanilla JS/CSS |
 | `docs/` | security model, client contract, MVP scope |
 
