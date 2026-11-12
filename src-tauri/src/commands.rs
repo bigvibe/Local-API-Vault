@@ -1,3 +1,4 @@
+use crate::audit::AuditEvent;
 use crate::model::{
     now_millis, CreateVaultResult, EntryInput, EntrySummary, ImportResult, RebuildResult,
     RevealedSecret, RunProfile, RunProfileInput, SecretEntry, VaultStatus,
@@ -242,6 +243,23 @@ pub fn get_secret(state: State<'_, Arc<AppState>>, id: String) -> Result<Reveale
 #[tauri::command]
 pub fn list_run_profiles(state: State<'_, Arc<AppState>>) -> Result<Vec<RunProfile>, String> {
     state.with_mut(|vault| Ok(vault.document.profiles.clone()))
+}
+
+/// The access log: when, which process, which entry NAME.
+///
+/// Names only — never values. Gated on "unlocked" for the same reason the
+/// bridge is: an entry name is exactly what a locked vault must not reveal.
+#[tauri::command]
+pub fn list_audit_events(state: State<'_, Arc<AppState>>) -> Result<Vec<AuditEvent>, String> {
+    audit_events_for(&state)
+}
+
+/// The command body, split out so it can be tested without a Tauri runtime.
+fn audit_events_for(state: &AppState) -> Result<Vec<AuditEvent>, String> {
+    if state.status()?.locked {
+        return Err("Vault 已锁定，无法查看读取记录。".to_owned());
+    }
+    Ok(state.audit().events(0))
 }
 
 #[tauri::command]
@@ -704,5 +722,50 @@ mod tests {
         assert_eq!(unquote("plain"), "plain");
         assert_eq!(unquote("'single'"), "single");
         assert_eq!(unquote("\"double\""), "double");
+    }
+
+    #[test]
+    fn audit_events_are_locked_out_until_the_vault_is_unlocked() {
+        use tempfile::tempdir;
+
+        let state = AppState::default();
+        // Locked: the log holds entry NAMES, and a locked vault reveals none.
+        let error = audit_events_for(&state).unwrap_err();
+        assert!(error.contains("已锁定"), "{error}");
+
+        state.audit().record(crate::audit::AuditEvent {
+            at: 1,
+            at_local: "2026-11-13 10:00:00".to_owned(),
+            pid: Some(42),
+            process: Some("demo.exe".to_owned()),
+            name: "API_KEY".to_owned(),
+            project: None,
+            environment: None,
+            cwd: None,
+            client: Some("lvault".to_owned()),
+            outcome: "ok".to_owned(),
+        });
+
+        // Still locked: the events stay unreadable.
+        assert!(audit_events_for(&state).is_err());
+
+        // Unlocked: the log comes back, newest first, names only.
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("vault.age");
+        let passphrase = "audit command test passphrase";
+        VaultFile::create(&path, passphrase).unwrap();
+        let document = VaultFile::load(&path, passphrase).unwrap();
+        state
+            .replace(UnlockedVault::from_parts(
+                path,
+                passphrase.to_owned(),
+                document,
+            ))
+            .unwrap();
+
+        let events = audit_events_for(&state).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].name, "API_KEY");
+        assert_eq!(events[0].outcome, "ok");
     }
 }

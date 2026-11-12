@@ -422,6 +422,9 @@ fn render_audit(events: &[local_api_vault_lib::audit::AuditEvent], limit: usize)
     }
     text.push('\n');
     text.push_str("进程与 PID 由服务端核实；项目与目录是调用方自报，只能当线索。\n");
+    text.push_str(
+        "结果码：ok 读取成功 / not_found 没有这个条目 / disabled 条目已停用 / vault_locked Vault 已锁定。\n",
+    );
     text.push_str("记录只在内存里，重启应用即清空；里面只有条目名，没有密钥值。\n");
     text
 }

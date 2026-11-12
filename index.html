@@ -103,6 +103,7 @@
                 <button id="export-backup" class="text-button" type="button">导出加密备份</button>
                 <button id="change-password" class="text-button" type="button">修改主密码</button>
                 <button id="run-profiles" class="text-button" type="button">运行配置</button>
+                <button id="audit-log" class="text-button" type="button">读取记录</button>
                 <button id="toggle-autostart" class="text-button" type="button">开机自启动：关</button>
                 <button id="enable-recovery" class="text-button" type="button" hidden>设置恢复密钥</button>
               </div>
@@ -239,6 +240,25 @@
               <button id="save-profile" class="button button-primary" type="submit">保存配置</button>
             </div>
           </form>
+        </section>
+      </div>
+
+      <div id="audit-modal" class="modal-backdrop" hidden>
+        <section class="modal-card modal-card-wide" role="dialog" aria-modal="true" aria-labelledby="audit-modal-title">
+          <div class="modal-heading">
+            <div>
+              <p class="eyebrow">ACCESS LOG</p>
+              <h2 id="audit-modal-title">读取记录</h2>
+            </div>
+            <button id="close-audit-modal" class="icon-button" type="button" aria-label="关闭">×</button>
+          </div>
+          <p class="modal-description">谁在什么时候读了哪个条目名。进程与 PID 由服务端核实；项目与目录是调用方自报，只能当线索。</p>
+          <div id="audit-list" class="audit-list"></div>
+          <p class="audit-note">记录只在内存里，重启应用即清空；里面只有条目名，没有密钥值。</p>
+          <div class="button-row modal-actions">
+            <button id="refresh-audit" class="button button-quiet" type="button">刷新</button>
+            <button id="close-audit-modal-action" class="button button-primary" type="button">关闭</button>
+          </div>
         </section>
       </div>
 

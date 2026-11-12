@@ -36,6 +36,8 @@ const profileModal = $("#profile-modal");
 const profileForm = $("#profile-form");
 const profileList = $("#profile-list");
 const profileMessage = $("#profile-message");
+const auditModal = $("#audit-modal");
+const auditList = $("#audit-list");
 const recoverySetupModal = $("#recovery-setup-modal");
 const recoveryKeyInput = $("#recovery-key");
 const recoverySetupMessage = $("#recovery-setup-message");
@@ -638,6 +640,82 @@ function closeProfileModal() {
   resetProfileForm();
 }
 
+const AUDIT_OUTCOMES = {
+  ok: "读取成功",
+  not_found: "没有这个条目",
+  disabled: "条目已停用",
+  vault_locked: "Vault 已锁定",
+  invalid_request: "请求有误",
+};
+
+// 渲染读取记录。只显示条目名、时间、进程和结果——没有任何密钥值。
+function renderAuditEvents(events) {
+  auditList.replaceChildren();
+  if (!events.length) {
+    const empty = document.createElement("div");
+    empty.className = "list-empty";
+    empty.textContent = "还没有读取记录";
+    auditList.append(empty);
+    return;
+  }
+
+  for (const event of events) {
+    const item = document.createElement("div");
+    item.className = "audit-item";
+
+    const main = document.createElement("div");
+    main.className = "audit-item-main";
+
+    const name = document.createElement("span");
+    name.className = "audit-item-name";
+    name.textContent = event.name;
+
+    const meta = document.createElement("span");
+    meta.className = "audit-item-meta";
+    let process = "未知进程";
+    if (event.process) {
+      process = event.pid ? `${event.process} (PID ${event.pid})` : event.process;
+    } else if (event.pid) {
+      process = `PID ${event.pid}`;
+    }
+    meta.textContent = `${event.atLocal} · ${process}`;
+    main.append(name, meta);
+
+    if (event.cwd) {
+      const cwd = document.createElement("span");
+      cwd.className = "audit-item-meta audit-item-cwd";
+      cwd.textContent = event.cwd;
+      main.append(cwd);
+    }
+
+    const badge = document.createElement("span");
+    badge.className = "audit-outcome";
+    badge.dataset.outcome = event.outcome;
+    badge.textContent = AUDIT_OUTCOMES[event.outcome] || event.outcome;
+
+    item.append(main, badge);
+    auditList.append(item);
+  }
+}
+
+async function loadAuditEvents() {
+  try {
+    const events = await invoke("list_audit_events");
+    renderAuditEvents(events);
+  } catch (error) {
+    showToast(errorMessage(error), "error");
+  }
+}
+
+function openAuditModal() {
+  auditModal.hidden = false;
+  loadAuditEvents();
+}
+
+function closeAuditModal() {
+  auditModal.hidden = true;
+}
+
 function editProfile(profile) {
   state.editingProfileId = profile.id;
   $("#profile-id").value = profile.id;
@@ -1042,6 +1120,10 @@ function bindEvents() {
   $("#export-backup").addEventListener("click", exportBackup);
   $("#change-password").addEventListener("click", openPasswordModal);
   $("#run-profiles").addEventListener("click", openProfileModal);
+  $("#audit-log").addEventListener("click", openAuditModal);
+  $("#close-audit-modal").addEventListener("click", closeAuditModal);
+  $("#close-audit-modal-action").addEventListener("click", closeAuditModal);
+  $("#refresh-audit").addEventListener("click", loadAuditEvents);
   $("#toggle-autostart").addEventListener("click", toggleAutostart);
   $("#close-profile-modal").addEventListener("click", closeProfileModal);
   $("#clear-profile-form").addEventListener("click", resetProfileForm);

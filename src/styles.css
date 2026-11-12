@@ -998,6 +998,88 @@ main {
   color: var(--text);
 }
 
+.audit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  margin-bottom: 16px;
+  overflow-y: auto;
+}
+
+.audit-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(9, 15, 26, 0.55);
+}
+
+.audit-item-main {
+  min-width: 0;
+}
+
+.audit-item-name {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-item-meta {
+  display: block;
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-item-cwd {
+  color: var(--muted-strong);
+}
+
+.audit-outcome {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border: 1px solid var(--line-bright);
+  border-radius: 999px;
+  color: var(--muted-strong);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.audit-outcome[data-outcome="ok"] {
+  border-color: rgba(82, 211, 160, 0.42);
+  color: var(--success);
+}
+
+.audit-outcome[data-outcome="not_found"],
+.audit-outcome[data-outcome="disabled"],
+.audit-outcome[data-outcome="vault_locked"] {
+  border-color: rgba(243, 200, 120, 0.48);
+  color: var(--warning);
+}
+
+.audit-outcome[data-outcome="invalid_request"] {
+  border-color: rgba(255, 127, 142, 0.52);
+  color: var(--danger);
+}
+
+.audit-note {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
 .profile-form-grid {
   padding-top: 0;
 }

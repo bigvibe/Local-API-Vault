@@ -104,6 +104,7 @@ pub fn run() {
             commands::entry_reference,
             commands::get_secret,
             commands::list_run_profiles,
+            commands::list_audit_events,
             commands::save_run_profile,
             commands::delete_run_profile,
             commands::delete_entry,
