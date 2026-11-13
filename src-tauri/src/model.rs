@@ -239,6 +239,22 @@ pub struct BackupInfo {
     pub disabled: usize,
     pub profiles: usize,
     pub has_identity: bool,
+    /// The SHA-256 of the backup file as it is right now.
+    pub digest: String,
+    /// The SHA-256 recorded next to the backup when it was exported.
+    pub expected_digest: Option<String>,
+    /// Whether the two agree. `None` when there is nothing to compare against.
+    pub digest_matches: Option<bool>,
+}
+
+/// The result of exporting an encrypted backup.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportResult {
+    /// SHA-256 of the exported file, lowercase hex.
+    pub digest: String,
+    /// Where the fingerprint was written.
+    pub sidecar_path: String,
 }
 
 /// Result of restoring a vault from a backup.

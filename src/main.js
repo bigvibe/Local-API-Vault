@@ -1084,8 +1084,12 @@ async function exportBackup() {
       filters: [{ name: "Vault 备份", extensions: ["age"] }],
     });
     if (!destination) return;
-    await invoke("export_backup", { destination });
-    showToast("加密备份已保存。", "success");
+    const result = await invoke("export_backup", { destination });
+    const short = result.digest.slice(0, 16);
+    showToast(
+      `加密备份已保存。SHA-256：${short}…（完整值写在旁边的 .sha256 文件里）`,
+      "success",
+    );
   } catch (error) {
     showToast(errorMessage(error), "error");
   }
@@ -1096,6 +1100,7 @@ function openBackupRestore() {
   $("#backup-passphrase").value = "";
   backupRestoreMessage.textContent = "";
   backupRestoreMessage.className = "form-message";
+  $("#backup-digest-status").textContent = "";
   $("#backup-restore-form").hidden = false;
   $("#backup-restore-steps").hidden = false;
   $("#backup-restore-success").hidden = true;
@@ -1107,6 +1112,7 @@ function closeBackupRestore() {
   backupRestoreModal.hidden = true;
   $("#backup-restore-form").reset();
   backupRestoreMessage.textContent = "";
+  $("#backup-digest-status").textContent = "";
   $("#backup-restore-steps").hidden = false;
   $("#backup-restore-success").hidden = true;
 }
@@ -1147,9 +1153,24 @@ async function inspectBackup() {
     backupRestoreMessage.textContent =
       `备份可以打开：${info.entries} 个条目${disabled}${profiles} ${identity}。`;
     backupRestoreMessage.className = "form-message ok";
+
+    // Does this file still look like the one we exported?
+    const digestStatus = $("#backup-digest-status");
+    if (info.digestMatches === true) {
+      digestStatus.textContent = "SHA-256 校验通过：文件和导出时一模一样。";
+      digestStatus.className = "form-message ok";
+    } else if (info.digestMatches === false) {
+      digestStatus.textContent =
+        "SHA-256 不匹配：这个文件和导出时不一样，可能被改动过。恢复前先确认一下。";
+      digestStatus.className = "form-message";
+    } else {
+      digestStatus.textContent = `没有找到 .sha256 校验文件，无法自动比对（实测 ${info.digest.slice(0, 16)}…）。`;
+      digestStatus.className = "form-message";
+    }
   } catch (error) {
     backupRestoreMessage.textContent = errorMessage(error);
     backupRestoreMessage.className = "form-message";
+    $("#backup-digest-status").textContent = "";
   } finally {
     setButtonBusy(button, false);
     $("#backup-passphrase").value = "";

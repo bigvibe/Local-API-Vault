@@ -1,8 +1,9 @@
 use crate::crypto;
 use crate::model::{VaultDocument, VAULT_VERSION};
+use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
 use thiserror::Error;
@@ -51,6 +52,20 @@ impl std::fmt::Debug for RotationOutcome {
 pub struct RestoreOutcome {
     pub document: VaultDocument,
     pub backup: Option<PathBuf>,
+}
+
+/// `<name>.sha256` next to a file.
+fn digest_sidecar_path(path: &Path) -> PathBuf {
+    let mut name = path
+        .file_name()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "vault".to_owned());
+    name.push_str(".sha256");
+    path.with_file_name(name)
+}
+
+fn to_hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 /// Milliseconds since the epoch, used to stamp backup file names.
@@ -381,6 +396,50 @@ impl VaultFile {
             document,
             backup: if backup.exists() { Some(backup) } else { None },
         })
+    }
+
+    /// SHA-256 of a file, lowercase hex.
+    ///
+    /// Streamed, so a big backup does not have to fit in memory.
+    pub fn file_digest(path: &Path) -> Result<String, VaultError> {
+        let mut file = fs::File::open(path).map_err(|_| VaultError::NotFound)?;
+        let mut hasher = Sha256::new();
+        let mut buffer = [0u8; 64 * 1024];
+        loop {
+            let count = file
+                .read(&mut buffer)
+                .map_err(|_| VaultError::InvalidData)?;
+            if count == 0 {
+                break;
+            }
+            hasher.update(&buffer[..count]);
+        }
+        Ok(to_hex(&hasher.finalize()))
+    }
+
+    /// Write `<path>.sha256` next to a file, in the `sha256sum` format
+    /// (`<hex>  <file name>`), so it can be checked with `sha256sum -c` or
+    /// `Get-FileHash` as well as by this app.
+    pub fn write_digest_sidecar(path: &Path, digest: &str) -> Result<PathBuf, VaultError> {
+        let sidecar = digest_sidecar_path(path);
+        let name = path
+            .file_name()
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "vault".to_owned());
+        let contents = format!("{digest}  {name}\n");
+        write_atomic(&sidecar, contents.as_bytes())?;
+        Ok(sidecar)
+    }
+
+    /// The digest recorded next to a file, if there is one.
+    pub fn read_digest_sidecar(path: &Path) -> Option<String> {
+        let sidecar = digest_sidecar_path(path);
+        let contents = fs::read_to_string(sidecar).ok()?;
+        contents
+            .split_whitespace()
+            .next()
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| value.len() == 64)
     }
 
     pub fn parse_recovery_identity(contents: &str) -> Result<age::x25519::Identity, VaultError> {
@@ -872,6 +931,62 @@ mod tests {
             VaultFile::restore_from(&backup, &path, "wrong passphrase entirely", passphrase)
                 .unwrap_err();
         assert!(matches!(error, VaultError::InvalidPassphrase));
+    }
+
+    #[test]
+    fn sha256_matches_the_known_vector() {
+        // The canonical SHA-256 of the empty string, and of "abc".
+        let directory = tempdir().unwrap();
+        let empty = directory.path().join("empty.bin");
+        fs::write(&empty, b"").unwrap();
+        assert_eq!(
+            VaultFile::file_digest(&empty).unwrap(),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+
+        let abc = directory.path().join("abc.bin");
+        fs::write(&abc, b"abc").unwrap();
+        assert_eq!(
+            VaultFile::file_digest(&abc).unwrap(),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
+    #[test]
+    fn digest_sidecar_round_trips_and_detects_changes() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("backup.age");
+        fs::write(&path, b"the original backup").unwrap();
+
+        let digest = VaultFile::file_digest(&path).unwrap();
+        let sidecar = VaultFile::write_digest_sidecar(&path, &digest).unwrap();
+        assert!(sidecar.exists());
+        assert_eq!(sidecar.file_name().unwrap(), "backup.age.sha256");
+        assert_eq!(
+            VaultFile::read_digest_sidecar(&path).as_deref(),
+            Some(digest.as_str())
+        );
+
+        // The recorded fingerprint still matches the untouched file.
+        let now = VaultFile::file_digest(&path).unwrap();
+        assert_eq!(now, digest);
+
+        // Change one byte: the fingerprint no longer matches.
+        fs::write(&path, b"the tampered backup").unwrap();
+        let changed = VaultFile::file_digest(&path).unwrap();
+        assert_ne!(changed, digest);
+        assert_eq!(
+            VaultFile::read_digest_sidecar(&path).as_deref(),
+            Some(digest.as_str())
+        );
+    }
+
+    #[test]
+    fn a_missing_sidecar_is_not_a_verdict() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("backup.age");
+        fs::write(&path, b"no sidecar here").unwrap();
+        assert!(VaultFile::read_digest_sidecar(&path).is_none());
     }
 
     #[test]

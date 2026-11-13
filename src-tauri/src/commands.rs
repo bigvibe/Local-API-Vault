@@ -1,8 +1,8 @@
 use crate::audit::AuditEvent;
 use crate::model::{
-    now_millis, BackupInfo, CreateVaultResult, EntryInput, EntrySummary, ImportResult,
-    RebuildResult, RestoreResult, RevealedSecret, RotationResult, RunProfile, RunProfileInput,
-    SecretEntry, VaultStatus,
+    now_millis, BackupInfo, CreateVaultResult, EntryInput, EntrySummary, ExportResult,
+    ImportResult, RebuildResult, RestoreResult, RevealedSecret, RotationResult, RunProfile,
+    RunProfileInput, SecretEntry, VaultStatus,
 };
 use crate::state::{AppState, UnlockedVault};
 use crate::vault::{default_vault_path as default_path, VaultError, VaultFile};
@@ -427,7 +427,10 @@ pub fn import_env(state: State<'_, Arc<AppState>>, path: String) -> Result<Impor
 }
 
 #[tauri::command]
-pub fn export_backup(state: State<'_, Arc<AppState>>, destination: String) -> Result<(), String> {
+pub fn export_backup(
+    state: State<'_, Arc<AppState>>,
+    destination: String,
+) -> Result<ExportResult, String> {
     let destination = PathBuf::from(destination.trim());
     if destination.as_os_str().is_empty() {
         return Err("请选择备份文件路径。".to_owned());
@@ -436,7 +439,16 @@ pub fn export_backup(state: State<'_, Arc<AppState>>, destination: String) -> Re
         if destination == vault.path {
             return Err("备份路径不能与当前 Vault 相同。".to_owned());
         }
-        VaultFile::copy_encrypted(&vault.path, &destination).map_err(|error| error.to_string())
+        VaultFile::copy_encrypted(&vault.path, &destination).map_err(|error| error.to_string())?;
+        // Write the fingerprint next to the backup, so "I thought I backed it
+        // up" can be checked later — by this app or by `sha256sum` / `Get-FileHash`.
+        let digest = VaultFile::file_digest(&destination).map_err(|error| error.to_string())?;
+        let sidecar = VaultFile::write_digest_sidecar(&destination, &digest)
+            .map_err(|error| error.to_string())?;
+        Ok(ExportResult {
+            digest,
+            sidecar_path: sidecar.to_string_lossy().into_owned(),
+        })
     })
 }
 
@@ -547,6 +559,9 @@ pub fn inspect_backup(path: String, passphrase: String) -> Result<BackupInfo, St
         VaultError::NoRecoveryIdentity => "备份文件状态异常。".to_owned(),
         VaultError::Io(_) => "读取备份失败。".to_owned(),
     })?;
+    let digest = VaultFile::file_digest(&path).map_err(|error| error.to_string())?;
+    let expected = VaultFile::read_digest_sidecar(&path);
+    let digest_matches = expected.as_ref().map(|value| value == &digest);
     Ok(BackupInfo {
         entries: document.entries.len(),
         disabled: document
@@ -556,6 +571,9 @@ pub fn inspect_backup(path: String, passphrase: String) -> Result<BackupInfo, St
             .count(),
         profiles: document.profiles.len(),
         has_identity: VaultFile::has_identity_sidecar(&path),
+        digest,
+        expected_digest: expected,
+        digest_matches,
     })
 }
 
