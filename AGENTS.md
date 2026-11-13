@@ -151,8 +151,12 @@ restores a value under `HKCU\...\Run`. That is expected.
 
 ## Client contract
 
-`docs/client-contract.md` defines the Named Pipe protocol. Only two operations
-exist: `get` and `profile`. There is no HTTP listener and no TCP port.
+`docs/client-contract.md` defines the Named Pipe protocol. Three operations
+exist: `get`, `profile` and `audit`. There is no HTTP listener and no TCP port.
+
+`audit` returns the app's access log — when, which process, which entry NAME.
+It never returns a value. `verify` is a separate, file-based command: it does
+not go through the Pipe at all.
 
 `document.version` is the JSON schema version and is independent of the age
 recipient mode; adding fields requires `#[serde(default)]` so old vaults keep
@@ -164,6 +168,16 @@ loading.
 - Run profiles store names and commands, never secret values.
 - Auto start only starts the process. It never auto-unlocks.
 - The pipe ACL is current user + SYSTEM.
+- The access log holds entry **names** only, never values, and lives in memory
+  only. It is unreadable while the vault is locked.
+- Rotating the recovery identity really revokes the old one: the previous
+  recovery file must fail to open the vault, not merely be discouraged.
+- A restore keeps the vault's identity, so the user's recovery file still opens
+  the restored vault.
+- The `.sha256` sidecar next to a backup holds a checksum of the file. Never
+  anything derived from a secret.
+- Anything that rewrites the vault file writes the new file, verifies it can be
+  decrypted, and only then replaces the old one — and keeps the old one.
 
 ## Out of scope — do not add
 
