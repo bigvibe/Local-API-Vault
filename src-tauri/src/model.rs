@@ -247,6 +247,38 @@ pub struct BackupInfo {
     pub digest_matches: Option<bool>,
 }
 
+/// One entry of a backup, for the read-only viewer. Names and metadata only —
+/// the secret value is deliberately absent from this type.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupItemSummary {
+    pub name: String,
+    pub kind: String,
+    pub project: String,
+    pub environment: String,
+    pub tags: Vec<String>,
+    pub enabled: bool,
+    pub updated_at: i64,
+}
+
+/// What the read-only backup viewer shows: the counts, the fingerprint and
+/// the entry list. Still never a secret value.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupView {
+    pub entries: usize,
+    pub disabled: usize,
+    pub profiles: usize,
+    pub has_identity: bool,
+    /// The SHA-256 of the backup file as it is right now.
+    pub digest: String,
+    /// The SHA-256 recorded next to the backup when it was exported.
+    pub expected_digest: Option<String>,
+    /// Whether the two agree. `None` when there is nothing to compare against.
+    pub digest_matches: Option<bool>,
+    pub items: Vec<BackupItemSummary>,
+}
+
 /// The result of exporting an encrypted backup.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

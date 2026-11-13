@@ -48,6 +48,8 @@ const recoveryForm = $("#recovery-form");
 const recoveryAccessMessage = $("#recovery-access-message");
 const backupRestoreModal = $("#backup-restore-modal");
 const backupRestoreMessage = $("#backup-restore-message");
+const backupViewModal = $("#backup-view-modal");
+const backupViewMessage = $("#backup-view-message");
 
 function selectedPath(value) {
   return Array.isArray(value) ? value[0] || null : value;
@@ -1155,18 +1157,7 @@ async function inspectBackup() {
     backupRestoreMessage.className = "form-message ok";
 
     // Does this file still look like the one we exported?
-    const digestStatus = $("#backup-digest-status");
-    if (info.digestMatches === true) {
-      digestStatus.textContent = "SHA-256 校验通过：文件和导出时一模一样。";
-      digestStatus.className = "form-message ok";
-    } else if (info.digestMatches === false) {
-      digestStatus.textContent =
-        "SHA-256 不匹配：这个文件和导出时不一样，可能被改动过。恢复前先确认一下。";
-      digestStatus.className = "form-message";
-    } else {
-      digestStatus.textContent = `没有找到 .sha256 校验文件，无法自动比对（实测 ${info.digest.slice(0, 16)}…）。`;
-      digestStatus.className = "form-message";
-    }
+    describeDigest($("#backup-digest-status"), info);
   } catch (error) {
     backupRestoreMessage.textContent = errorMessage(error);
     backupRestoreMessage.className = "form-message";
@@ -1211,6 +1202,129 @@ async function restoreFromBackup(event) {
   } finally {
     setButtonBusy(button, false);
     $("#backup-passphrase").value = "";
+  }
+}
+
+function openBackupView() {
+  $("#backup-view-form").reset();
+  backupViewMessage.textContent = "";
+  backupViewMessage.className = "form-message";
+  $("#backup-view-digest").textContent = "";
+  $("#backup-view-form").hidden = false;
+  $("#backup-view-result").hidden = true;
+  backupViewModal.hidden = false;
+  window.setTimeout(() => $("#backup-view-path").focus(), 0);
+}
+
+function closeBackupView() {
+  backupViewModal.hidden = true;
+  $("#backup-view-form").reset();
+  backupViewMessage.textContent = "";
+  $("#backup-view-digest").textContent = "";
+  $("#backup-view-form").hidden = false;
+  $("#backup-view-result").hidden = true;
+}
+
+async function chooseBackupViewSource() {
+  try {
+    const selection = await open({
+      title: "选择备份文件",
+      multiple: false,
+      directory: false,
+      filters: [{ name: "Vault 备份", extensions: ["age"] }],
+    });
+    const path = selectedPath(selection);
+    if (path) $("#backup-view-path").value = path;
+  } catch (error) {
+    backupViewMessage.textContent = errorMessage(error);
+  }
+}
+
+function describeDigest(element, info) {
+  if (info.digestMatches === true) {
+    element.textContent = "SHA-256 校验通过：文件和导出时一模一样。";
+    element.className = "form-message ok";
+  } else if (info.digestMatches === false) {
+    element.textContent =
+      "SHA-256 不匹配：这个文件和导出时不一样，可能被改动过。恢复前先确认一下。";
+    element.className = "form-message";
+  } else {
+    element.textContent = `没有找到 .sha256 校验文件，无法自动比对（实测 ${info.digest.slice(0, 16)}…）。`;
+    element.className = "form-message";
+  }
+}
+
+function renderBackupViewItems(items) {
+  const list = $("#backup-view-list");
+  list.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "list-empty";
+    empty.textContent = "这个备份里没有条目";
+    list.append(empty);
+    return;
+  }
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "backup-view-item";
+
+    const main = document.createElement("div");
+    main.className = "backup-view-item-main";
+
+    const name = document.createElement("span");
+    name.className = "backup-view-name";
+    name.textContent = item.name;
+
+    const meta = document.createElement("span");
+    meta.className = "backup-view-meta";
+    meta.textContent = [
+      item.enabled ? "启用" : "已停用",
+      kindLabel(item.kind),
+      item.project,
+      item.environment,
+      new Date(item.updatedAt).toLocaleString(),
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    main.append(name, meta);
+    row.append(main);
+    list.append(row);
+  }
+}
+
+async function handleBackupView(event) {
+  event.preventDefault();
+  const source = $("#backup-view-path").value.trim();
+  const passphrase = $("#backup-view-passphrase").value;
+  if (!source) {
+    backupViewMessage.textContent = "请先选择备份文件。";
+    return;
+  }
+  if (!passphrase) {
+    backupViewMessage.textContent = "请输入备份原来的主密码。";
+    return;
+  }
+  const button = $("#open-backup-view");
+  setButtonBusy(button, true, "打开中…");
+  try {
+    const view = await invoke("view_backup", { path: source, passphrase });
+    const disabled = view.disabled ? `，${view.disabled} 个已停用` : "";
+    const profiles = view.profiles ? `，${view.profiles} 个运行配置` : "";
+    const identity = view.hasIdentity ? "身份格式" : "口令格式";
+    $("#backup-view-counts").textContent =
+      `这个备份里有 ${view.entries} 个条目${disabled}${profiles}；${identity}。`;
+    describeDigest($("#backup-view-digest"), view);
+    renderBackupViewItems(view.items);
+    $("#backup-view-form").hidden = true;
+    $("#backup-view-result").hidden = false;
+  } catch (error) {
+    backupViewMessage.textContent = errorMessage(error);
+    backupViewMessage.className = "form-message";
+    $("#backup-view-digest").textContent = "";
+  } finally {
+    setButtonBusy(button, false);
+    $("#backup-view-passphrase").value = "";
   }
 }
 
@@ -1289,6 +1403,11 @@ function bindEvents() {
   $("#choose-backup-source").addEventListener("click", chooseBackupSource);
   $("#inspect-backup").addEventListener("click", inspectBackup);
   $("#backup-restore-form").addEventListener("submit", restoreFromBackup);
+  $("#view-backup").addEventListener("click", openBackupView);
+  $("#close-backup-view").addEventListener("click", closeBackupView);
+  $("#finish-backup-view").addEventListener("click", closeBackupView);
+  $("#choose-backup-view-source").addEventListener("click", chooseBackupViewSource);
+  $("#backup-view-form").addEventListener("submit", handleBackupView);
   $("#change-password").addEventListener("click", openPasswordModal);
   $("#run-profiles").addEventListener("click", openProfileModal);
   $("#audit-log").addEventListener("click", openAuditModal);

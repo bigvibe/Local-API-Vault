@@ -109,6 +109,7 @@
               <div class="sidebar-actions">
                 <button id="import-env" class="text-button" type="button">导入 .env</button>
                 <button id="export-backup" class="text-button" type="button">导出加密备份</button>
+                <button id="view-backup" class="text-button" type="button">查看备份</button>
                 <button id="restore-backup" class="text-button" type="button">从备份恢复</button>
                 <button id="change-password" class="text-button" type="button">修改主密码</button>
                 <button id="run-profiles" class="text-button" type="button">运行配置</button>
@@ -339,6 +340,45 @@
             </ul>
             <div class="button-row modal-actions">
               <button id="finish-backup-restore" class="button button-primary" type="button">知道了</button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div id="backup-view-modal" class="modal-backdrop" hidden>
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="backup-view-title">
+          <div class="modal-heading">
+            <div>
+              <p class="eyebrow">VIEW BACKUP</p>
+              <h2 id="backup-view-title">查看备份</h2>
+            </div>
+            <button id="close-backup-view" class="icon-button" type="button" aria-label="关闭">×</button>
+          </div>
+          <form id="backup-view-form">
+            <label class="field">
+              <span>备份文件</span>
+              <div class="path-input-row">
+                <input id="backup-view-path" type="text" spellcheck="false" required />
+                <button id="choose-backup-view-source" class="input-action" type="button">选择文件</button>
+              </div>
+              <small class="field-help">备份是<strong>一对</strong>文件：<code>vault.age</code> 和旁边的 <code>vault.identity.age</code>，要放在同一个目录里。</small>
+            </label>
+            <label class="field">
+              <span>备份原来的主密码</span>
+              <input id="backup-view-passphrase" type="password" autocomplete="off" required />
+            </label>
+            <p id="backup-view-message" class="form-message" role="status"></p>
+            <div class="button-row modal-actions">
+              <button id="open-backup-view" class="button button-primary" type="submit">打开查看</button>
+            </div>
+          </form>
+          <div id="backup-view-result" hidden>
+            <p id="backup-view-counts" class="modal-description"></p>
+            <p id="backup-view-digest" class="form-message" role="status"></p>
+            <div id="backup-view-list" class="backup-view-list"></div>
+            <p class="audit-note">只读视图：这里只有名字和元数据，没有密钥值，也改不了任何东西。要取回内容，请用「从备份恢复」。</p>
+            <div class="button-row modal-actions">
+              <button id="finish-backup-view" class="button button-quiet" type="button">关闭</button>
             </div>
           </div>
         </section>

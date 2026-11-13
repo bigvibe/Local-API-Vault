@@ -176,6 +176,8 @@ loading.
   the restored vault.
 - The `.sha256` sidecar next to a backup holds a checksum of the file. Never
   anything derived from a secret.
+- Opening a backup in the viewer is read-only: no command writes to a backup
+  file, and the viewer's payload carries names and metadata, never values.
 - Anything that rewrites the vault file writes the new file, verifies it can be
   decrypted, and only then replaces the old one — and keeps the old one.
 

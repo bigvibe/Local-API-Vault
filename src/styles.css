@@ -1084,6 +1084,50 @@ main {
   line-height: 1.7;
 }
 
+.backup-view-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  margin-bottom: 16px;
+  overflow-y: auto;
+}
+
+.backup-view-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(9, 15, 26, 0.55);
+}
+
+.backup-view-item-main {
+  min-width: 0;
+}
+
+.backup-view-name {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backup-view-meta {
+  display: block;
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .recovery-entry {
   margin: 26px 0 0;
   padding: 15px 17px;

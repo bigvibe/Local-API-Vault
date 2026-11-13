@@ -1,14 +1,14 @@
 use crate::audit::AuditEvent;
 use crate::model::{
-    now_millis, BackupInfo, CreateVaultResult, EntryInput, EntrySummary, ExportResult,
-    ImportResult, RebuildResult, RestoreResult, RevealedSecret, RotationResult, RunProfile,
-    RunProfileInput, SecretEntry, VaultStatus,
+    now_millis, BackupInfo, BackupItemSummary, BackupView, CreateVaultResult, EntryInput,
+    EntrySummary, ExportResult, ImportResult, RebuildResult, RestoreResult, RevealedSecret,
+    RotationResult, RunProfile, RunProfileInput, SecretEntry, VaultDocument, VaultStatus,
 };
 use crate::state::{AppState, UnlockedVault};
 use crate::vault::{default_vault_path as default_path, VaultError, VaultFile};
 use age::secrecy::ExposeSecret;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
 use uuid::Uuid;
@@ -541,14 +541,11 @@ pub fn rotate_recovery_identity(state: State<'_, Arc<AppState>>) -> Result<Rotat
     })
 }
 
-/// Check an exported backup without changing anything. Counts only.
-#[tauri::command]
-pub fn inspect_backup(path: String, passphrase: String) -> Result<BackupInfo, String> {
-    let path = PathBuf::from(path.trim());
-    if path.as_os_str().is_empty() {
-        return Err("请选择备份文件。".to_owned());
-    }
-    let document = VaultFile::load(&path, &passphrase).map_err(|error| match error {
+/// Open an exported backup for reading. Shared by `inspect_backup` (counts
+/// only, for the restore wizard) and `view_backup` (the read-only viewer).
+/// Reading a backup never writes to it.
+fn load_backup_document(path: &Path, passphrase: &str) -> Result<VaultDocument, String> {
+    VaultFile::load(path, passphrase).map_err(|error| match error {
         VaultError::NotFound => "找不到这个备份文件。".to_owned(),
         VaultError::InvalidPassphrase => {
             "主密码不正确，或者这个备份不是身份格式（缺少配套的 .identity.age）。".to_owned()
@@ -558,7 +555,17 @@ pub fn inspect_backup(path: String, passphrase: String) -> Result<BackupInfo, St
         VaultError::AlreadyExists => "备份文件状态异常。".to_owned(),
         VaultError::NoRecoveryIdentity => "备份文件状态异常。".to_owned(),
         VaultError::Io(_) => "读取备份失败。".to_owned(),
-    })?;
+    })
+}
+
+/// Check an exported backup without changing anything. Counts only.
+#[tauri::command]
+pub fn inspect_backup(path: String, passphrase: String) -> Result<BackupInfo, String> {
+    let path = PathBuf::from(path.trim());
+    if path.as_os_str().is_empty() {
+        return Err("请选择备份文件。".to_owned());
+    }
+    let document = load_backup_document(&path, &passphrase)?;
     let digest = VaultFile::file_digest(&path).map_err(|error| error.to_string())?;
     let expected = VaultFile::read_digest_sidecar(&path);
     let digest_matches = expected.as_ref().map(|value| value == &digest);
@@ -574,6 +581,47 @@ pub fn inspect_backup(path: String, passphrase: String) -> Result<BackupInfo, St
         digest,
         expected_digest: expected,
         digest_matches,
+    })
+}
+
+/// Open a backup as a read-only view: counts, fingerprint and the entry list.
+/// Names and metadata only — the payload type carries no secret value, and no
+/// command anywhere writes to a backup file.
+#[tauri::command]
+pub fn view_backup(path: String, passphrase: String) -> Result<BackupView, String> {
+    let path = PathBuf::from(path.trim());
+    if path.as_os_str().is_empty() {
+        return Err("请选择备份文件。".to_owned());
+    }
+    let document = load_backup_document(&path, &passphrase)?;
+    let digest = VaultFile::file_digest(&path).map_err(|error| error.to_string())?;
+    let expected = VaultFile::read_digest_sidecar(&path);
+    let digest_matches = expected.as_ref().map(|value| value == &digest);
+    Ok(BackupView {
+        entries: document.entries.len(),
+        disabled: document
+            .entries
+            .iter()
+            .filter(|entry| !entry.enabled)
+            .count(),
+        profiles: document.profiles.len(),
+        has_identity: VaultFile::has_identity_sidecar(&path),
+        digest,
+        expected_digest: expected,
+        digest_matches,
+        items: document
+            .entries
+            .iter()
+            .map(|entry| BackupItemSummary {
+                name: entry.name.clone(),
+                kind: entry.kind.clone(),
+                project: entry.project.clone(),
+                environment: entry.environment.clone(),
+                tags: entry.tags.clone(),
+                enabled: entry.enabled,
+                updated_at: entry.updated_at,
+            })
+            .collect(),
     })
 }
 
@@ -940,5 +988,62 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].name, "API_KEY");
         assert_eq!(events[0].outcome, "ok");
+    }
+
+    #[test]
+    fn the_backup_viewer_reports_names_and_never_values() {
+        use tempfile::tempdir;
+
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("vault.age");
+        let passphrase = "viewer test passphrase";
+        VaultFile::create(&path, passphrase).unwrap();
+
+        let mut document = VaultFile::load(&path, passphrase).unwrap();
+        document.entries.push(SecretEntry {
+            id: "viewer-1".into(),
+            name: "VIEWER_API_KEY".into(),
+            kind: "api-key".into(),
+            project: "web".into(),
+            environment: "production".into(),
+            username: String::new(),
+            secret: "DO-NOT-LEAK-9f8e7d6c".into(),
+            url: String::new(),
+            notes: String::new(),
+            tags: vec!["shared".into()],
+            enabled: true,
+            created_at: 1,
+            updated_at: 2,
+        });
+        VaultFile::save(&path, passphrase, &document).unwrap();
+        let backup = directory.path().join("backup.age");
+        VaultFile::copy_encrypted(&path, &backup).unwrap();
+
+        let source = backup.to_string_lossy().into_owned();
+        let view = view_backup(source.clone(), passphrase.to_owned()).unwrap();
+        assert_eq!(view.entries, 1);
+        assert_eq!(view.items.len(), 1);
+        assert_eq!(view.items[0].name, "VIEWER_API_KEY");
+        assert_eq!(view.items[0].kind, "api-key");
+        assert_eq!(view.items[0].project, "web");
+        assert_eq!(view.items[0].environment, "production");
+        assert!(view.items[0].enabled);
+        assert_eq!(view.items[0].updated_at, 2);
+
+        // The whole payload serialises without the value anywhere in it.
+        let json = serde_json::to_string(&view).unwrap();
+        assert!(
+            !json.contains("DO-NOT-LEAK"),
+            "viewer output must not carry secret values"
+        );
+
+        // The restore wizard's check stays counts-only: not even the names.
+        let info = inspect_backup(source, passphrase.to_owned()).unwrap();
+        assert_eq!(info.entries, 1);
+        let info_json = serde_json::to_string(&info).unwrap();
+        assert!(
+            !info_json.contains("VIEWER_API_KEY"),
+            "inspect_backup stays counts-only"
+        );
     }
 }
