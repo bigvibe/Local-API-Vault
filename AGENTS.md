@@ -185,3 +185,20 @@ loading.
 
 HTTP listeners, fixed TCP ports, cloud sync, accounts/login, RBAC, HSM, idle
 auto-lock, auto-unlock, telemetry, or secret values in run profiles.
+
+## Dependency policy
+
+- Dependabot's grouped `npm-minor` / `cargo-minor` PRs are **not merged**: Tauri
+  requires the npm packages and the Rust crates to stay on the same
+  major/minor line, so either half alone breaks the Windows build. A coordinated
+  frontend + backend bump can be proposed separately; close the half-PRs with
+  that reason.
+- Single-crate PRs may be merged when CI is green, the change is small and
+  tests cover it. Verify locally with `cargo test`, `cargo clippy -D warnings`
+  and `npm run build` before merging.
+- Keep `rust-version` in `src-tauri/Cargo.toml` as the floor. Do not merge a
+  dependency whose MSRV is newer than it — for example `sha2` 0.11.1 requires
+  1.88, while the repo is on 1.85.
+- `age` is pinned to whatever crates.io has; the `RUSTSEC-2026-0387` advisory
+  stays explicitly allowed until an `age` release fixes it. Never widen that
+  ignore list automatically.
