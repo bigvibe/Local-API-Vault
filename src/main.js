@@ -18,6 +18,8 @@ const state = {
   pendingRecoveryKeyIsReplacement: false,
   recoveryEnabled: false,
   vaultPath: "",
+  dirty: false,
+  modalTrigger: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -146,7 +148,89 @@ function toggleMoreMenu() {
   if (first) first.focus();
 }
 
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+
+function openModalCard() {
+  const open = [...document.querySelectorAll(".modal-backdrop:not([hidden])")];
+  return open.length ? open[open.length - 1].querySelector(".modal-card") : null;
+}
+
+function restoreModalFocus() {
+  const trigger = state.modalTrigger;
+  if (trigger && trigger.isConnected && trigger.offsetParent !== null) trigger.focus();
+}
+
+function confirmDiscardEdits() {
+  if (!state.dirty) return true;
+  return window.confirm("当前条目有未保存的修改，继续会丢弃这些修改。确定继续吗？");
+}
+
+function markDirty() {
+  state.dirty = true;
+}
+
+function clearDirty() {
+  state.dirty = false;
+}
+
+function rememberModalTrigger() {
+  if (document.querySelector(".modal-backdrop:not([hidden])")) return;
+  state.modalTrigger = document.activeElement;
+}
+
+function focusFirstField() {
+  const card = openModalCard();
+  const target =
+    card?.querySelector(
+      "input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled])",
+    ) ||
+    card?.querySelector(FOCUSABLE_SELECTOR) ||
+    null;
+  if (target) target.focus();
+}
+
+function handleModalKeydown(event) {
+  const card = openModalCard();
+  if (!card) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    const closer = MODAL_CLOSERS[card.parentElement.id];
+    if (closer) closer();
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const items = [...card.querySelectorAll(FOCUSABLE_SELECTOR)].filter(
+    (element) => element.offsetParent !== null,
+  );
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (!card.contains(document.activeElement)) {
+    event.preventDefault();
+    first.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  } else if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  }
+}
+
+const MODAL_CLOSERS = {
+  "profile-modal": closeProfileModal,
+  "audit-modal": closeAuditModal,
+  "recovery-setup-modal": requestCloseRecoverySetup,
+  "backup-restore-modal": closeBackupRestore,
+  "backup-view-modal": closeBackupView,
+  "recovery-access-modal": closeRecoveryAccess,
+  "password-modal": closePasswordModal,
+};
+
 function resetEditor() {
+  if (!confirmDiscardEdits()) return;
+  clearDirty();
   state.selectedId = null;
   state.enabled = true;
   state.secret = "";
@@ -168,6 +252,7 @@ function resetEditor() {
 }
 
 function showEmptyEditor() {
+  clearDirty();
   state.selectedId = null;
   state.secret = "";
   state.selectionToken += 1;
@@ -406,6 +491,8 @@ async function loadEntries() {
 async function selectEntry(id) {
   const summary = state.entries.find((entry) => entry.id === id);
   if (!summary) return;
+  if (state.selectedId !== id && !confirmDiscardEdits()) return;
+  clearDirty();
 
   const token = ++state.selectionToken;
   state.selectedId = id;
@@ -475,6 +562,7 @@ async function saveEntry(event) {
     });
     state.selectedId = saved.id;
     state.secret = saved.secret || secret;
+    clearDirty();
     await loadEntries();
     await selectEntry(saved.id);
     showToast("密钥已保存。", "success");
@@ -487,6 +575,7 @@ async function saveEntry(event) {
 
 function toggleEntryStatus() {
   state.enabled = !state.enabled;
+  markDirty();
   $("#toggle-entry-status").textContent = state.enabled ? "停用" : "启用";
   formMessage.textContent = state.enabled
     ? "保存后，此密钥将恢复为可用状态。"
@@ -675,14 +764,17 @@ async function loadProfiles() {
 }
 
 function openProfileModal() {
+  rememberModalTrigger();
   resetProfileForm();
   profileModal.hidden = false;
   loadProfiles();
+  window.setTimeout(focusFirstField, 0);
 }
 
 function closeProfileModal() {
   profileModal.hidden = true;
   resetProfileForm();
+  restoreModalFocus();
 }
 
 const AUDIT_OUTCOMES = {
@@ -753,12 +845,15 @@ async function loadAuditEvents() {
 }
 
 function openAuditModal() {
+  rememberModalTrigger();
   auditModal.hidden = false;
   loadAuditEvents();
+  window.setTimeout(focusFirstField, 0);
 }
 
 function closeAuditModal() {
   auditModal.hidden = true;
+  restoreModalFocus();
 }
 
 function editProfile(profile) {
@@ -862,9 +957,11 @@ function closeRecoverySetup() {
   $("#recovery-setup-description").textContent =
     "这是一把独立的恢复密钥。请保存到 Vault 之外的安全位置；丢失它就无法恢复原数据。";
   $("#finish-recovery-setup").textContent = "稍后设置";
+  restoreModalFocus();
 }
 
 function openRecoverySetup(recoveryKey, options = {}) {
+  rememberModalTrigger();
   state.pendingRecoveryKey = recoveryKey;
   state.recoveryKeySaved = false;
   state.pendingRecoveryKeyIsReplacement = Boolean(options.replacement);
@@ -920,6 +1017,7 @@ async function saveRecoveryKey() {
 }
 
 function openRecoveryAccess() {
+  rememberModalTrigger();
   $("#recovery-vault-path").value = vaultPathInput.value;
   $("#recovery-identity-path").value = "";
   $("#recovery-new-password").value = "";
@@ -1023,9 +1121,11 @@ function closePasswordModal() {
   passwordModal.hidden = true;
   passwordForm.reset();
   passwordModalMessage.textContent = "";
+  restoreModalFocus();
 }
 
 function openPasswordModal() {
+  rememberModalTrigger();
   passwordForm.reset();
   passwordModalMessage.textContent = "";
   passwordModal.hidden = false;
@@ -1131,6 +1231,7 @@ async function exportBackup() {
 }
 
 function openBackupRestore() {
+  rememberModalTrigger();
   $("#backup-source-path").value = "";
   $("#backup-passphrase").value = "";
   backupRestoreMessage.textContent = "";
@@ -1150,6 +1251,7 @@ function closeBackupRestore() {
   $("#backup-digest-status").textContent = "";
   $("#backup-restore-steps").hidden = false;
   $("#backup-restore-success").hidden = true;
+  restoreModalFocus();
 }
 
 async function chooseBackupSource() {
@@ -1239,6 +1341,7 @@ async function restoreFromBackup(event) {
 }
 
 function openBackupView() {
+  rememberModalTrigger();
   $("#backup-view-form").reset();
   backupViewMessage.textContent = "";
   backupViewMessage.className = "form-message";
@@ -1256,6 +1359,7 @@ function closeBackupView() {
   $("#backup-view-digest").textContent = "";
   $("#backup-view-form").hidden = false;
   $("#backup-view-result").hidden = true;
+  restoreModalFocus();
 }
 
 async function chooseBackupViewSource() {
@@ -1362,10 +1466,13 @@ async function handleBackupView(event) {
 }
 
 async function lockVault(alreadyLocked = false) {
+  if (!alreadyLocked && !confirmDiscardEdits()) return;
   try {
     if (!alreadyLocked) await invoke("lock_vault");
     window.clearTimeout(state.clipboardTimer);
     await clearClipboard();
+    clearDirty();
+    state.modalTrigger = null;
     state.entries = [];
     state.selectedId = null;
     state.secret = "";
@@ -1486,6 +1593,9 @@ function bindEvents() {
   $("#copy-reference").addEventListener("click", copyReference);
   $("#toggle-secret").addEventListener("click", toggleSecret);
   entryForm.addEventListener("submit", saveEntry);
+  entryForm.addEventListener("input", markDirty);
+  entryForm.addEventListener("change", markDirty);
+  document.addEventListener("keydown", handleModalKeydown);
 
   $("#search-input").addEventListener("input", (event) => {
     state.query = event.target.value.trim().toLowerCase();
