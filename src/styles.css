@@ -439,8 +439,17 @@ main {
 }
 
 .sidebar-top {
+  gap: 12px;
   justify-content: space-between;
   padding: 0 8px;
+}
+
+.sidebar-add {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 12px;
 }
 
 .sidebar-top .eyebrow {
@@ -452,12 +461,26 @@ main {
   font-size: 22px;
 }
 
-.sidebar-location {
-  overflow: hidden;
+.sidebar-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   margin: 8px 8px 0;
+}
+
+.sidebar-location {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
   color: var(--muted);
   font-size: 10px;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-meta #entry-count {
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 
@@ -662,19 +685,26 @@ main {
 
 .list-empty {
   display: grid;
-  min-height: 160px;
+  min-height: 96px;
+  gap: 12px;
   place-items: center;
-  padding: 20px;
+  padding: 16px;
   color: var(--muted);
   font-size: 12px;
   text-align: center;
 }
 
+.list-empty-action {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
 .sidebar-footer {
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 15px;
-  padding: 14px 5px 0;
+  display: block;
+  margin-top: 12px;
+  padding: 12px 5px 0;
   border-top: 1px solid rgba(100, 118, 150, 0.16);
 }
 
@@ -682,6 +712,46 @@ main {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
+}
+
+.sidebar-more {
+  position: relative;
+  display: inline-flex;
+}
+
+.sidebar-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  display: grid;
+  min-width: 168px;
+  padding: 6px;
+  border: 1px solid var(--line-bright);
+  border-radius: 11px;
+  background: var(--panel-raised);
+  box-shadow: var(--shadow);
+}
+
+.menu-item {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted-strong);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.menu-item:hover {
+  color: var(--text);
+  background: rgba(42, 51, 79, 0.8);
+}
+
+.menu-item.active::after {
+  content: " ✓";
+  color: var(--accent-bright);
 }
 
 .text-button {

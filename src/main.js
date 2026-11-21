@@ -118,10 +118,32 @@ function setVaultStatus(status) {
 function showWorkspace(show) {
   workspace.hidden = !show;
   onboarding.hidden = show;
+  closeMoreMenu();
   if (!show) {
     entryForm.hidden = true;
     emptyEditor.hidden = false;
   }
+}
+
+function closeMoreMenu(returnFocus = false) {
+  const menu = $("#more-menu");
+  if (!menu || menu.hidden) return;
+  menu.hidden = true;
+  $("#more-actions").setAttribute("aria-expanded", "false");
+  if (returnFocus) $("#more-actions").focus();
+}
+
+function toggleMoreMenu() {
+  const menu = $("#more-menu");
+  if (!menu) return;
+  if (!menu.hidden) {
+    closeMoreMenu();
+    return;
+  }
+  menu.hidden = false;
+  $("#more-actions").setAttribute("aria-expanded", "true");
+  const first = menu.querySelector("button:not([hidden])");
+  if (first) first.focus();
 }
 
 function resetEditor() {
@@ -247,7 +269,18 @@ function renderEntries() {
   if (visible.length === 0) {
     const empty = document.createElement("div");
     empty.className = "list-empty";
-    empty.textContent = state.entries.length ? "没有匹配的条目" : "还没有密钥";
+    if (state.entries.length) {
+      empty.textContent = "没有匹配的条目";
+    } else {
+      const label = document.createElement("span");
+      label.textContent = "还没有密钥";
+      const action = document.createElement("button");
+      action.type = "button";
+      action.className = "button button-primary list-empty-action";
+      action.textContent = "添加第一条密钥";
+      action.addEventListener("click", resetEditor);
+      empty.append(label, action);
+    }
     entryList.append(empty);
     return;
   }
@@ -1392,6 +1425,23 @@ function bindEvents() {
   $("#open-vault").addEventListener("click", (event) => handleVaultAction("open_vault", event.currentTarget));
   $("#lock-button").addEventListener("click", () => lockVault());
   $("#add-entry").addEventListener("click", resetEditor);
+  $("#more-actions").addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleMoreMenu();
+  });
+  $("#more-menu").addEventListener("click", () => closeMoreMenu());
+  $("#more-menu").addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      closeMoreMenu(true);
+    }
+  });
+  document.addEventListener("click", (event) => {
+    const menu = $("#more-menu");
+    const trigger = $("#more-actions");
+    if (!menu || menu.hidden) return;
+    if (!menu.contains(event.target) && event.target !== trigger) closeMoreMenu();
+  });
   $("#delete-entry").addEventListener("click", deleteEntry);
   $("#toggle-entry-status").addEventListener("click", toggleEntryStatus);
   $("#choose-vault").addEventListener("click", chooseVault);
