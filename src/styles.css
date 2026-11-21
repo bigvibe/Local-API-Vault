@@ -269,6 +269,7 @@ main {
 .field textarea,
 .search-field input {
   width: 100%;
+  font-size: 13px;
   border: 1px solid var(--line);
   border-radius: 10px;
   outline: none;
@@ -333,7 +334,7 @@ main {
 .button-primary {
   border-color: rgba(169, 157, 255, 0.5);
   color: #100d2b;
-  background: linear-gradient(135deg, var(--accent-bright), #7565ee);
+  background: linear-gradient(135deg, var(--accent-bright), #7d68ff);
   box-shadow: 0 8px 20px rgba(117, 101, 238, 0.2);
 }
 
@@ -454,7 +455,7 @@ main {
 
 .sidebar-top .eyebrow {
   margin-bottom: 7px;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .sidebar-top h2 {
@@ -474,7 +475,7 @@ main {
   overflow: hidden;
   margin: 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -585,7 +586,7 @@ main {
   border-radius: 7px;
   color: var(--muted);
   background: transparent;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .filter-button:hover,
@@ -674,7 +675,7 @@ main {
 
 .entry-item-meta {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .entry-arrow {
@@ -759,7 +760,7 @@ main {
   border: 0;
   color: var(--accent-bright);
   background: transparent;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -834,7 +835,7 @@ main {
 
 .editor-heading .eyebrow {
   margin-bottom: 8px;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .editor-heading h2 {
@@ -970,7 +971,7 @@ main {
 
 .modal-heading .eyebrow {
   margin-bottom: 8px;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .modal-heading h2 {
@@ -1047,7 +1048,7 @@ main {
   overflow: hidden;
   margin-top: 4px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1064,7 +1065,7 @@ main {
   border-radius: 7px;
   color: var(--muted-strong);
   background: transparent;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .profile-item-actions button:hover {
@@ -1079,6 +1080,7 @@ main {
   max-height: 320px;
   margin-bottom: 16px;
   overflow-y: auto;
+  mask-image: linear-gradient(180deg, transparent 0, #000 9%, #000 91%, transparent 100%);
 }
 
 .audit-item {
@@ -1111,7 +1113,7 @@ main {
   overflow: hidden;
   margin-top: 3px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1126,7 +1128,7 @@ main {
   border: 1px solid var(--line-bright);
   border-radius: 999px;
   color: var(--muted-strong);
-  font-size: 10px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -1150,7 +1152,7 @@ main {
 .audit-note {
   margin: 0 0 18px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
 }
 
@@ -1161,6 +1163,7 @@ main {
   max-height: 320px;
   margin-bottom: 16px;
   overflow-y: auto;
+  mask-image: linear-gradient(180deg, transparent 0, #000 9%, #000 91%, transparent 100%);
 }
 
 .backup-view-item {
@@ -1193,7 +1196,7 @@ main {
   overflow: hidden;
   margin-top: 3px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1224,7 +1227,7 @@ main {
 .recovery-entry-hint {
   margin: 9px 0 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
 }
 
@@ -1265,7 +1268,7 @@ main {
 
 .field-help {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 400;
   line-height: 1.5;
 }

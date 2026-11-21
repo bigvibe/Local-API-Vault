@@ -241,6 +241,7 @@ function resetEditor() {
   $("#entry-secret").type = "password";
   $("#toggle-secret").textContent = "显示";
   $("#toggle-entry-status").textContent = "停用";
+  $("#toggle-entry-status").hidden = true;
   $("#editor-title").textContent = "添加密钥";
   $("#delete-entry").hidden = true;
   $("#copy-reference").hidden = true;
@@ -503,6 +504,7 @@ async function selectEntry(id) {
   $("#editor-title").textContent = "编辑密钥";
   $("#toggle-entry-status").textContent = state.enabled ? "停用" : "启用";
   $("#delete-entry").hidden = false;
+  $("#toggle-entry-status").hidden = false;
   $("#copy-reference").hidden = false;
   fillForm(summary);
   scrollEditorToTop();
@@ -1419,7 +1421,7 @@ function renderBackupViewItems(items) {
       kindLabel(item.kind),
       item.project,
       item.environment,
-      new Date(item.updatedAt).toLocaleString(),
+      new Date(item.updatedAt).toLocaleString("zh-CN"),
     ]
       .filter(Boolean)
       .join(" · ");
