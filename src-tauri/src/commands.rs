@@ -359,6 +359,74 @@ pub fn delete_entry(state: State<'_, Arc<AppState>>, id: String) -> Result<(), S
 }
 
 #[tauri::command]
+pub fn batch_delete_entries(
+    state: State<'_, Arc<AppState>>,
+    ids: Vec<String>,
+) -> Result<usize, String> {
+    if ids.is_empty() {
+        return Err("没有选择任何条目。".to_owned());
+    }
+    state.with_mut(|vault| {
+        let mut next = vault.document.clone();
+        let mut deleted = 0usize;
+        // Remove entries that match the given IDs
+        next.entries.retain(|entry| {
+            if ids.contains(&entry.id) {
+                deleted += 1;
+                false
+            } else {
+                true
+            }
+        });
+        if deleted == 0 {
+            next.zeroize();
+            return Err("没有找到匹配的条目。".to_owned());
+        }
+        if let Err(error) = vault_save(&vault.path, &vault.passphrase, &next) {
+            next.zeroize();
+            return Err(error.to_string());
+        }
+        let mut previous = std::mem::replace(&mut vault.document, next);
+        previous.zeroize();
+        Ok(deleted)
+    })
+}
+
+#[tauri::command]
+pub fn batch_toggle_entries(
+    state: State<'_, Arc<AppState>>,
+    ids: Vec<String>,
+    enabled: bool,
+) -> Result<usize, String> {
+    if ids.is_empty() {
+        return Err("没有选择任何条目。".to_owned());
+    }
+    state.with_mut(|vault| {
+        let mut next = vault.document.clone();
+        let mut updated = 0usize;
+        let now = now_millis();
+        for entry in &mut next.entries {
+            if ids.contains(&entry.id) {
+                entry.enabled = enabled;
+                entry.updated_at = now;
+                updated += 1;
+            }
+        }
+        if updated == 0 {
+            next.zeroize();
+            return Err("没有找到匹配的条目。".to_owned());
+        }
+        if let Err(error) = vault_save(&vault.path, &vault.passphrase, &next) {
+            next.zeroize();
+            return Err(error.to_string());
+        }
+        let mut previous = std::mem::replace(&mut vault.document, next);
+        previous.zeroize();
+        Ok(updated)
+    })
+}
+
+#[tauri::command]
 pub fn import_env(state: State<'_, Arc<AppState>>, path: String) -> Result<ImportResult, String> {
     let source = PathBuf::from(path.trim());
     if source.as_os_str().is_empty() {
@@ -1045,5 +1113,193 @@ mod tests {
             !info_json.contains("VIEWER_API_KEY"),
             "inspect_backup stays counts-only"
         );
+    }
+
+    #[test]
+    fn batch_delete_removes_selected_entries() {
+        use tempfile::tempdir;
+
+        let state = AppState::default();
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("vault.age");
+        let passphrase = "batch delete test passphrase";
+        VaultFile::create(&path, passphrase).unwrap();
+
+        let mut document = VaultFile::load(&path, passphrase).unwrap();
+        document.entries.push(SecretEntry {
+            id: "batch-1".into(),
+            name: "API_KEY_1".into(),
+            kind: "api-key".into(),
+            project: "web".into(),
+            environment: "production".into(),
+            username: String::new(),
+            secret: "secret-1".into(),
+            url: String::new(),
+            notes: String::new(),
+            tags: vec![],
+            enabled: true,
+            created_at: 1,
+            updated_at: 1,
+        });
+        document.entries.push(SecretEntry {
+            id: "batch-2".into(),
+            name: "API_KEY_2".into(),
+            kind: "api-key".into(),
+            project: "web".into(),
+            environment: "production".into(),
+            username: String::new(),
+            secret: "secret-2".into(),
+            url: String::new(),
+            notes: String::new(),
+            tags: vec![],
+            enabled: true,
+            created_at: 2,
+            updated_at: 2,
+        });
+        document.entries.push(SecretEntry {
+            id: "batch-3".into(),
+            name: "API_KEY_3".into(),
+            kind: "api-key".into(),
+            project: "web".into(),
+            environment: "production".into(),
+            username: String::new(),
+            secret: "secret-3".into(),
+            url: String::new(),
+            notes: String::new(),
+            tags: vec![],
+            enabled: true,
+            created_at: 3,
+            updated_at: 3,
+        });
+        VaultFile::save(&path, passphrase, &document).unwrap();
+
+        let vault = UnlockedVault::from_parts(path.clone(), passphrase.to_owned(), document);
+        state.replace(vault).unwrap();
+
+        // Delete batch-1 and batch-3
+        let result = state.with_mut(|vault| {
+            let mut next = vault.document.clone();
+            let ids = ["batch-1".into(), "batch-3".into()];
+            let mut deleted = 0usize;
+            next.entries.retain(|entry| {
+                if ids.contains(&entry.id) {
+                    deleted += 1;
+                    false
+                } else {
+                    true
+                }
+            });
+            if deleted == 0 {
+                next.zeroize();
+                return Err("没有找到匹配的条目。".to_owned());
+            }
+            if let Err(error) = vault_save(&vault.path, &vault.passphrase, &next) {
+                next.zeroize();
+                return Err(error.to_string());
+            }
+            let mut previous = std::mem::replace(&mut vault.document, next);
+            previous.zeroize();
+            Ok(deleted)
+        }).unwrap();
+        assert_eq!(result, 2);
+
+        let loaded = VaultFile::load(&path, passphrase).unwrap();
+        assert_eq!(loaded.entries.len(), 1);
+        assert_eq!(loaded.entries[0].id, "batch-2");
+    }
+
+    #[test]
+    fn batch_toggle_changes_enabled_status() {
+        use tempfile::tempdir;
+
+        let state = AppState::default();
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("vault.age");
+        let passphrase = "batch toggle test passphrase";
+        VaultFile::create(&path, passphrase).unwrap();
+
+        let mut document = VaultFile::load(&path, passphrase).unwrap();
+        document.entries.push(SecretEntry {
+            id: "toggle-1".into(),
+            name: "API_KEY_1".into(),
+            kind: "api-key".into(),
+            project: "web".into(),
+            environment: "production".into(),
+            username: String::new(),
+            secret: "secret-1".into(),
+            url: String::new(),
+            notes: String::new(),
+            tags: vec![],
+            enabled: true,
+            created_at: 1,
+            updated_at: 1,
+        });
+        document.entries.push(SecretEntry {
+            id: "toggle-2".into(),
+            name: "API_KEY_2".into(),
+            kind: "api-key".into(),
+            project: "web".into(),
+            environment: "production".into(),
+            username: String::new(),
+            secret: "secret-2".into(),
+            url: String::new(),
+            notes: String::new(),
+            tags: vec![],
+            enabled: true,
+            created_at: 2,
+            updated_at: 2,
+        });
+        document.entries.push(SecretEntry {
+            id: "toggle-3".into(),
+            name: "API_KEY_3".into(),
+            kind: "api-key".into(),
+            project: "web".into(),
+            environment: "production".into(),
+            username: String::new(),
+            secret: "secret-3".into(),
+            url: String::new(),
+            notes: String::new(),
+            tags: vec![],
+            enabled: true,
+            created_at: 3,
+            updated_at: 3,
+        });
+        VaultFile::save(&path, passphrase, &document).unwrap();
+
+        let vault = UnlockedVault::from_parts(path.clone(), passphrase.to_owned(), document);
+        state.replace(vault).unwrap();
+
+        // Disable toggle-1 and toggle-3
+        let result = state.with_mut(|vault| {
+            let mut next = vault.document.clone();
+            let ids = ["toggle-1".into(), "toggle-3".into()];
+            let mut updated = 0usize;
+            let now = now_millis();
+            for entry in &mut next.entries {
+                if ids.contains(&entry.id) {
+                    entry.enabled = false;
+                    entry.updated_at = now;
+                    updated += 1;
+                }
+            }
+            if updated == 0 {
+                next.zeroize();
+                return Err("没有找到匹配的条目。".to_owned());
+            }
+            if let Err(error) = vault_save(&vault.path, &vault.passphrase, &next) {
+                next.zeroize();
+                return Err(error.to_string());
+            }
+            let mut previous = std::mem::replace(&mut vault.document, next);
+            previous.zeroize();
+            Ok(updated)
+        }).unwrap();
+        assert_eq!(result, 2);
+
+        let loaded = VaultFile::load(&path, passphrase).unwrap();
+        assert_eq!(loaded.entries.len(), 3);
+        assert!(!loaded.entries[0].enabled);
+        assert!(loaded.entries[1].enabled);
+        assert!(!loaded.entries[2].enabled);
     }
 }

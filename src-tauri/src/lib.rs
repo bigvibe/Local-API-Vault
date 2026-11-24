@@ -108,6 +108,8 @@ pub fn run() {
             commands::save_run_profile,
             commands::delete_run_profile,
             commands::delete_entry,
+            commands::batch_delete_entries,
+            commands::batch_toggle_entries,
             commands::import_env,
             commands::export_backup,
             commands::change_passphrase,

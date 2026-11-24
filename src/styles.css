@@ -634,7 +634,18 @@ main {
   border-style: dashed;
 }
 
-.entry-item.selected {
+.entry-item-content {
+  border-radius: 8px;
+  padding: 4px 8px;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.entry-item-content:hover {
+  border-color: var(--line);
+  background: rgba(27, 39, 61, 0.58);
+}
+
+.entry-item-content.selected {
   border-color: rgba(139, 124, 255, 0.44);
   background: linear-gradient(100deg, rgba(139, 124, 255, 0.18), rgba(139, 124, 255, 0.05));
 }
@@ -1135,6 +1146,76 @@ main {
 .audit-outcome[data-outcome="ok"] {
   border-color: rgba(82, 211, 160, 0.42);
   color: var(--success);
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 4px 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(139, 124, 255, 0.35);
+  border-radius: 10px;
+  background: rgba(139, 124, 255, 0.08);
+}
+
+.selected-count {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.batch-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.batch-buttons .button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.entry-checkbox {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.entry-item-inner {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entry-item-content {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  transition: none;
+}
+
+.entry-item-content:hover {
+  border: 0;
+  background: transparent;
+  transform: none;
+}
+
+.entry-item-content.selected {
+  border: 0;
+  background: transparent;
 }
 
 .audit-outcome[data-outcome="not_found"],

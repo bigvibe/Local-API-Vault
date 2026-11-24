@@ -6,6 +6,7 @@ const state = {
   profiles: [],
   editingProfileId: null,
   selectedId: null,
+  selectedIds: new Set(),
   enabled: true,
   filter: "all",
   tag: "",
@@ -232,6 +233,7 @@ function resetEditor() {
   if (!confirmDiscardEdits()) return;
   clearDirty();
   state.selectedId = null;
+  state.selectedIds.clear();
   state.enabled = true;
   state.secret = "";
   state.selectionToken += 1;
@@ -248,7 +250,7 @@ function resetEditor() {
   formMessage.textContent = "";
   emptyEditor.hidden = true;
   entryForm.hidden = false;
-  highlightSelection();
+  renderEntries();
   scrollEditorToTop();
 }
 
@@ -352,6 +354,16 @@ function renderEntries() {
     ? `${enabledCount} 启用 · ${disabledCount} 停用`
     : `${enabledCount} 个条目`;
 
+  // Update batch action bar visibility
+  const batchActions = $("#batch-actions");
+  const selectedCount = $("#selected-count");
+  if (state.selectedIds.size > 0) {
+    batchActions.hidden = false;
+    selectedCount.textContent = `已选择 ${state.selectedIds.size} 项`;
+  } else {
+    batchActions.hidden = true;
+  }
+
   if (visible.length === 0) {
     const empty = document.createElement("div");
     empty.className = "list-empty";
@@ -372,18 +384,37 @@ function renderEntries() {
   }
 
   for (const summary of visible) {
-    const item = document.createElement("button");
-    item.type = "button";
+    const item = document.createElement("div");
     item.className = "entry-item";
     if (summary.enabled === false) item.classList.add("disabled");
-    if (summary.id === state.selectedId) item.classList.add("selected");
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "entry-checkbox";
+    checkbox.dataset.entryId = summary.id;
+    checkbox.checked = state.selectedIds.has(summary.id);
+    checkbox.addEventListener("change", (event) => {
+      if (event.target.checked) {
+        state.selectedIds.add(summary.id);
+      } else {
+        state.selectedIds.delete(summary.id);
+      }
+      renderEntries();
+    });
+    checkbox.addEventListener("click", (event) => event.stopPropagation());
+
+    const content = document.createElement("button");
+    content.type = "button";
+    content.className = "entry-item-content";
+    content.dataset.entryId = summary.id;
+    if (summary.id === state.selectedId) content.classList.add("selected");
 
     const icon = document.createElement("span");
     icon.className = "entry-icon";
     icon.textContent = iconForKind(summary.kind);
 
-    const content = document.createElement("span");
-    content.className = "entry-item-content";
+    const inner = document.createElement("span");
+    inner.className = "entry-item-inner";
     const title = document.createElement("span");
     title.className = "entry-item-title";
     title.textContent = summary.name;
@@ -391,14 +422,15 @@ function renderEntries() {
     meta.className = "entry-item-meta";
     meta.textContent = [summary.project, summary.environment].filter(Boolean).join(" · ") || kindLabel(summary.kind);
     if (summary.enabled === false) meta.textContent += " · 已停用";
-    content.append(title, meta);
+    inner.append(title, meta);
 
     const arrow = document.createElement("span");
     arrow.className = "entry-arrow";
     arrow.textContent = "›";
-    item.dataset.entryId = summary.id;
-    item.append(icon, content, arrow);
-    item.addEventListener("click", () => selectEntry(summary.id));
+    content.append(icon, inner, arrow);
+    content.addEventListener("click", () => selectEntry(summary.id));
+
+    item.append(checkbox, content);
     entryList.append(item);
   }
 }
@@ -406,7 +438,7 @@ function renderEntries() {
 // Update the highlight in place. Rebuilding the list on every click would
 // reset its scroll position, making a low entry jump back to the top.
 function highlightSelection() {
-  for (const item of entryList.querySelectorAll(".entry-item")) {
+  for (const item of entryList.querySelectorAll(".entry-item-content")) {
     item.classList.toggle("selected", item.dataset.entryId === state.selectedId);
   }
 }
@@ -599,6 +631,51 @@ async function deleteEntry() {
   } finally {
     setButtonBusy(button, false);
   }
+}
+
+async function batchDeleteEntries() {
+  if (state.selectedIds.size === 0) return;
+  const count = state.selectedIds.size;
+  if (!window.confirm(`确定删除选中的 ${count} 个密钥吗？此操作不能撤销。`)) return;
+  const button = $("#batch-delete");
+  setButtonBusy(button, true, "删除中…");
+  try {
+    const ids = Array.from(state.selectedIds);
+    const deleted = await invoke("batch_delete_entries", { ids });
+    state.selectedIds.clear();
+    showEmptyEditor();
+    await loadEntries();
+    showToast(`已删除 ${deleted} 个密钥。`, "success");
+  } catch (error) {
+    showToast(errorMessage(error), "error");
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+async function batchToggleEntries(enabled) {
+  if (state.selectedIds.size === 0) return;
+  const count = state.selectedIds.size;
+  const action = enabled ? "启用" : "停用";
+  if (!window.confirm(`确定${action}选中的 ${count} 个密钥吗？`)) return;
+  const button = enabled ? $("#batch-enable") : $("#batch-disable");
+  setButtonBusy(button, true, `${action}中…`);
+  try {
+    const ids = Array.from(state.selectedIds);
+    const updated = await invoke("batch_toggle_entries", { ids, enabled });
+    state.selectedIds.clear();
+    await loadEntries();
+    showToast(`已${action} ${updated} 个密钥。`, "success");
+  } catch (error) {
+    showToast(errorMessage(error), "error");
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+function clearBatchSelection() {
+  state.selectedIds.clear();
+  renderEntries();
 }
 
 async function clearClipboard() {
@@ -1553,6 +1630,10 @@ function bindEvents() {
   });
   $("#delete-entry").addEventListener("click", deleteEntry);
   $("#toggle-entry-status").addEventListener("click", toggleEntryStatus);
+  $("#batch-delete").addEventListener("click", batchDeleteEntries);
+  $("#batch-enable").addEventListener("click", () => batchToggleEntries(true));
+  $("#batch-disable").addEventListener("click", () => batchToggleEntries(false));
+  $("#batch-clear").addEventListener("click", clearBatchSelection);
   $("#choose-vault").addEventListener("click", chooseVault);
   $("#import-env").addEventListener("click", importEnv);
   $("#export-backup").addEventListener("click", exportBackup);
